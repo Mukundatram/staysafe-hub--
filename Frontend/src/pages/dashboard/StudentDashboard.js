@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { authService, bookingService } from '../../services/propertyService';
+import messService from '../../services/messService';
 import { useAuth } from '../../context/AuthContext';
 import Loading from '../../components/ui/Loading';
 import Card from '../../components/ui/Card';
@@ -34,6 +35,22 @@ import toast from 'react-hot-toast';
 const StudentDashboard = () => {
   useAuth(); // Ensure user is authenticated
   const [dashboardData, setDashboardData] = useState(null);
+  const [messSubscriptions, setMessSubscriptions] = useState([]);
+  const [messLoading, setMessLoading] = useState(true);
+    // Fetch user's mess subscriptions
+    const fetchMessSubscriptions = useCallback(async () => {
+      try {
+        setMessLoading(true);
+        const response = await messService.getMySubscriptions();
+        setMessSubscriptions(response.data || []);
+      } catch (err) {
+        console.error('Failed to fetch mess subscriptions:', err);
+        toast.error('Failed to load mess subscriptions');
+      } finally {
+        setMessLoading(false);
+      }
+    }, []);
+
   const [loading, setLoading] = useState(true);
   const [chatModalOpen, setChatModalOpen] = useState(false);
   const [selectedChatData, setSelectedChatData] = useState(null);
@@ -57,7 +74,8 @@ const StudentDashboard = () => {
   useEffect(() => {
     fetchDashboardData();
     fetchVerificationStatus();
-  }, [fetchVerificationStatus]);
+    fetchMessSubscriptions();
+  }, [fetchVerificationStatus, fetchMessSubscriptions]);
 
   const fetchDashboardData = async () => {
     try {
@@ -244,6 +262,102 @@ const StudentDashboard = () => {
         <div className="dashboard-grid">
           {/* Main Content */}
           <div className="dashboard-main">
+            {/* Mess Subscriptions */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.12 }}
+            >
+              <Card padding="lg">
+                <div className="card-header">
+                  <h2>
+                    <HiOutlineClipboardList size={24} />
+                    My Mess Subscriptions
+                  </h2>
+                </div>
+                {messLoading ? (
+                  <Loading size="md" text="Loading mess subscriptions..." />
+                ) : messSubscriptions.length === 0 ? (
+                  <EmptyState
+                    icon={HiOutlineClipboardList}
+                    title="No mess subscriptions yet"
+                    description="Subscribe to a mess/tiffin service to see it here."
+                  />
+                ) : (
+                  <div className="mess-subs-list">
+                    {messSubscriptions.map((sub, idx) => (
+                      <motion.div
+                        key={sub._id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.04 }}
+                        className="mess-sub-item"
+                      >
+                        <div className="mess-sub-info">
+                          <h4>{sub.mess?.name || 'Mess Service'}</h4>
+                          <p>
+                            <HiOutlineLocationMarker size={14} />{' '}
+                            {sub.mess?.location || 'Location'}
+                          </p>
+                          <div className="mess-sub-meta">
+                            <span className="meta-label">Plan:</span> {sub.plan}
+                            {sub.selectedMeals?.length > 0 && (
+                              <>
+                                {' | '}<span className="meta-label">Meals:</span> {sub.selectedMeals.join(', ')}
+                              </>
+                            )}
+                          </div>
+                          <div className="mess-sub-meta">
+                            <span className="meta-label">Status:</span>{' '}
+                            <Badge variant={sub.status === 'Active' ? 'success' : sub.status === 'Pending' ? 'warning' : 'gray'}>
+                              {sub.status}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="mess-sub-actions">
+                          {/* Optionally add cancel button or details link */}
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </motion.div>
+                  <style>{`
+                    .mess-subs-list {
+                      display: flex;
+                      flex-direction: column;
+                      gap: 1rem;
+                      margin-bottom: 2rem;
+                    }
+                    .mess-sub-item {
+                      display: flex;
+                      justify-content: space-between;
+                      align-items: flex-start;
+                      padding: 1rem 0;
+                      border-bottom: 1px solid var(--border-light);
+                    }
+                    .mess-sub-info h4 {
+                      font-size: 1rem;
+                      margin-bottom: 0.25rem;
+                    }
+                    .mess-sub-info p {
+                      display: flex;
+                      align-items: center;
+                      gap: 0.375rem;
+                      color: var(--text-secondary);
+                      font-size: 0.9375rem;
+                    }
+                    .mess-sub-meta {
+                      font-size: 0.85rem;
+                      color: var(--text-tertiary);
+                      margin-top: 0.25rem;
+                    }
+                    .meta-label {
+                      font-weight: 500;
+                      color: var(--text-primary);
+                    }
+                  `}</style>
             {/* Active Stay */}
             {activeBooking && (
               <motion.div

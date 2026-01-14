@@ -63,7 +63,7 @@ const MessServicesPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [filters, messService]);
+  }, [filters]);
 
   useEffect(() => {
     fetchMessServices();

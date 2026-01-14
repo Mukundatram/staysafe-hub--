@@ -1164,88 +1164,31 @@ const OwnerDashboard = () => {
                     <HiOutlineX size={16} />
                   </Button>
                 </div>
+                
                 <div className="subscribers-list">
                   {messSubscribers.map((sub) => (
                     <div key={sub._id} className="subscriber-item">
                       <div className="subscriber-info">
                         <span className="subscriber-name">{sub.user?.name || 'Unknown'}</span>
-                        <span className="subscriber-email">{sub.user?.email && (<>
-                          | <a href={`mailto:${sub.user.email}`}>{sub.user.email}</a>
-                        </>)}</span>
-                        <span className="subscriber-plan">Plan: {sub.plan} {sub.selectedMeals?.length > 0 && (<>
-                          | Meals: {sub.selectedMeals.join(', ')}
-                        </>)}
-                        </span>
-                        <span className="subscriber-date">Subscribed: {sub.createdAt ? new Date(sub.createdAt).toLocaleDateString() : 'N/A'}</span>
+                        <span className="subscriber-plan">{sub.plan} - {sub.selectedMeals?.join(', ')}</span>
                         <span className="subscriber-status">
                           <Badge variant={sub.status === 'Active' ? 'success' : sub.status === 'Pending' ? 'warning' : 'gray'}>
                             {sub.status}
                           </Badge>
                         </span>
                       </div>
-                      <div className="subscriber-actions">
-                        {sub.status === 'Pending' && (
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => handleApproveSubscription(sub._id)}
-                          >
-                            Approve
-                          </Button>
-                        )}
-                        {sub.status === 'Active' && (
-                          <Button
-                            variant="danger"
-                            size="sm"
-                            onClick={() => {
-                              // Optionally implement cancel subscription for owner
-                              toast('Cancel subscription not implemented');
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                        )}
-                      </div>
+                      {sub.status === 'Pending' && (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => handleApproveSubscription(sub._id)}
+                        >
+                          Approve
+                        </Button>
+                      )}
                     </div>
                   ))}
                 </div>
-                <style>{`
-                  .subscribers-list {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 1rem;
-                  }
-                  .subscriber-item {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: flex-start;
-                    padding: 1rem 0;
-                    border-bottom: 1px solid var(--border-light);
-                  }
-                  .subscriber-info {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 0.25rem;
-                  }
-                  .subscriber-name {
-                    font-weight: 600;
-                  }
-                  .subscriber-email a {
-                    color: var(--primary);
-                    text-decoration: underline;
-                  }
-                  .subscriber-plan, .subscriber-date {
-                    font-size: 0.95em;
-                    color: var(--text-secondary);
-                  }
-                  .subscriber-status {
-                    margin-top: 0.25rem;
-                  }
-                  .subscriber-actions {
-                    display: flex;
-                    gap: 0.5rem;
-                  }
-                `}</style>
               </Card>
             )}
           </motion.div>
@@ -1448,7 +1391,7 @@ const OwnerDashboard = () => {
                     name="description"
                     className="form-input"
                     placeholder="Describe your property, its features, and nearby amenities..."
-                    value={Array.isArray(formData.description) ? formData.description.map((step, idx) => `${idx + 1}. ${step}`).join('\n') : formData.description}
+                    value={formData.description}
                     onChange={handleInputChange}
                     rows={4}
                   />
@@ -1831,25 +1774,18 @@ const OwnerDashboard = () => {
               </div>
 
               <div className="modal-actions">
-                <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', gap: '1rem', padding: '1rem 0 0 0', background: 'inherit', position: 'sticky', bottom: 0, zIndex: 10 }}>
-                  <Button 
-                    variant="secondary" 
-                    onClick={() => setShowAIModal(false)}
-                    style={{ minWidth: '120px', fontWeight: 500 }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    variant="primary" 
-                    onClick={generateAIDescription} 
-                    isLoading={aiGenerating}
-                    disabled={!aiFormData.location || !aiFormData.rent}
-                    style={{ minWidth: '180px', fontWeight: 600, fontSize: '1rem', boxShadow: '0 2px 8px rgba(102,126,234,0.15)' }}
-                  >
-                    <HiOutlineSparkles size={20} style={{ marginRight: 8 }} />
-                    Generate Description
-                  </Button>
-                </div>
+                <Button variant="secondary" onClick={() => setShowAIModal(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  variant="primary" 
+                  onClick={generateAIDescription} 
+                  isLoading={aiGenerating}
+                  disabled={!aiFormData.location || !aiFormData.rent}
+                >
+                  <HiOutlineSparkles size={18} />
+                  Generate Description
+                </Button>
               </div>
             </motion.div>
           </div>
@@ -1931,7 +1867,7 @@ const OwnerDashboard = () => {
                   </div>
                   <textarea
                     name="description"
-                    value={Array.isArray(messFormData.description) ? messFormData.description.map((step, idx) => `${idx + 1}. ${step}`).join('\n') : messFormData.description}
+                    value={messFormData.description}
                     onChange={handleMessInputChange}
                     placeholder="Describe your mess service, or click 'Generate with AI' to auto-generate!"
                     rows={4}

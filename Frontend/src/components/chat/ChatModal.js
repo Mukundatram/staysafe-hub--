@@ -34,7 +34,7 @@ const ChatModal = ({ isOpen, onClose, property, ownerId, ownerName }) => {
     } finally {
       setLoading(false);
     }
-  }, [property, ownerId, chatService, loading]);
+  }, [property, ownerId, loading]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

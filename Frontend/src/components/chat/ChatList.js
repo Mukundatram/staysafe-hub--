@@ -27,7 +27,7 @@ const ChatList = ({ onSelectChat }) => {
     } finally {
       setLoading(false);
     }
-  }, [chatService, loading]);
+  }, [loading]);
 
   useEffect(() => {
     fetchConversations();

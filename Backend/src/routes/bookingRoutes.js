@@ -17,7 +17,7 @@ router.get(
     try {
       const bookings = await Booking.find()
         .populate("student", "email name")
-        .populate("property", "title location isAvailable")
+        .populate("property", "title location isAvailable rent")
         .sort({ createdAt: -1 });
 
       res.json(bookings);

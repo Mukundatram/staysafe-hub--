@@ -30,7 +30,7 @@ const ReviewList = ({ propertyId, averageRating = 0, reviewCount = 0, ratingBrea
     } finally {
       setLoading(false);
     }
-  }, [propertyId, sortBy, reviewService]);
+  }, [propertyId, sortBy]);
 
   useEffect(() => {
     if (propertyId) {
