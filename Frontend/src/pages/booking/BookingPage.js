@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { propertyService, bookingService } from '../../services/propertyService';
+import messService from '../../services/messService';
 import { useAuth } from '../../context/AuthContext';
 import Loading from '../../components/ui/Loading';
 import Button from '../../components/ui/Button';
@@ -38,11 +39,35 @@ const BookingPage = () => {
     planType: 'room', // room, room-mess, mess
   });
   const [selectedRoomId, setSelectedRoomId] = useState(null);
+  const [roomsCount, setRoomsCount] = useState(1);
+  const [membersCount, setMembersCount] = useState(1);
+  const [includeMess, setIncludeMess] = useState(false);
+  const [messOptions, setMessOptions] = useState([]);
+  const [selectedMessId, setSelectedMessId] = useState(null);
+  const [selectedMessPlan, setSelectedMessPlan] = useState('monthly-all');
 
   useEffect(() => {
     fetchProperty();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [propertyId]);
+
+  useEffect(() => {
+    // fetch mess options once property is loaded
+    const loadMess = async () => {
+      if (!property) return;
+      try {
+        // search mess services by property location
+        const resp = await messService.getAll({ location: property.location });
+        // messService.getAll returns { messServices, pagination } per backend; normalize
+        const list = Array.isArray(resp) ? resp : (resp.messServices || resp.data || []);
+        setMessOptions(list || []);
+      } catch (e) {
+        console.error('Failed to load mess options:', e);
+      } finally {
+      }
+    };
+    loadMess();
+  }, [property]);
 
   const fetchProperty = async () => {
     try {
@@ -60,13 +85,55 @@ const BookingPage = () => {
 
   const handleSubmit = async () => {
     try {
-      setSubmitting(true);
+      // Client-side validation: ensure selected room has enough availability and members fit capacity
       const payload = {
         startDate: formData.startDate,
         endDate: formData.endDate,
         mealsSelected: formData.mealsSelected,
       };
-      if (selectedRoomId) payload.roomId = selectedRoomId;
+
+      if (selectedRoomId) {
+        const room = property.rooms.find(r => r._id === selectedRoomId || r._id === String(selectedRoomId));
+        if (!room) {
+          toast.error('Selected room not found');
+          return;
+        }
+
+        // roomsCount must not exceed availableRooms
+        if ((roomsCount || 1) > (room.availableRooms || 0)) {
+          toast.error(`Only ${room.availableRooms || 0} room(s) available for the selected type`);
+          return;
+        }
+
+        // members must fit into selected rooms based on maxOccupancy
+        const maxAllowedMembers = (room.maxOccupancy || 1) * (roomsCount || 1);
+        if ((membersCount || 1) > maxAllowedMembers) {
+          toast.error(`Total members exceed capacity. Max allowed: ${maxAllowedMembers}`);
+          return;
+        }
+
+        payload.roomId = selectedRoomId;
+        payload.roomsCount = roomsCount;
+        payload.membersCount = membersCount;
+      }
+
+      // Attach mess selection if requested
+      if (includeMess) {
+        if (!selectedMessId) {
+          toast.error('Please select a mess provider');
+          return;
+        }
+        if (!selectedMessPlan) {
+          toast.error('Please select a mess plan');
+          return;
+        }
+        payload.messId = selectedMessId;
+        payload.messPlan = selectedMessPlan;
+        // align mess subscription start with booking start date by default
+        payload.messStartDate = formData.startDate;
+      }
+
+      setSubmitting(true);
       await bookingService.create(propertyId, payload);
       setBookingComplete(true);
       toast.success('Booking request submitted successfully!');
@@ -80,14 +147,46 @@ const BookingPage = () => {
 
   const calculateTotal = () => {
     let rent = property?.rent || 0;
-    // If a room is selected, use room price where available
+    // If a room is selected, use room price where available and account for roomsCount/membersCount
     if (selectedRoomId && property?.rooms) {
       const room = property.rooms.find(r => r._id === selectedRoomId || r._id === String(selectedRoomId));
       if (room) {
-        rent = (room.pricePerRoom && room.pricePerRoom > 0) ? room.pricePerRoom : (room.pricePerBed || rent);
+        // Determine per-room charge
+        const perRoom = (room.pricePerRoom && room.pricePerRoom > 0) ? room.pricePerRoom : null;
+        const perBed = (room.pricePerBed && room.pricePerBed > 0) ? room.pricePerBed : null;
+        if (perRoom !== null) {
+          rent = perRoom * (roomsCount || 1);
+        } else if (perBed !== null) {
+          rent = perBed * (membersCount || 1);
+        } else {
+          rent = property?.rent || 0;
+        }
       }
     }
-    const messCharges = formData.mealsSelected ? 3000 : 0;
+    // Determine mess charges: prefer selected mess provider, fallback to legacy flag
+    let messCharges = 0;
+    if (selectedMessId && messOptions && messOptions.length > 0) {
+      const mess = messOptions.find(m => m._id === selectedMessId || m._id === String(selectedMessId));
+      if (mess) {
+        const plan = selectedMessPlan || 'monthly-all';
+        const pricing = mess.pricing || {};
+        switch (plan) {
+          case 'monthly-all':
+            messCharges = pricing.monthly?.allMeals || 0;
+            break;
+          case 'monthly-two':
+            messCharges = pricing.monthly?.twoMeals || 0;
+            break;
+          case 'monthly-one':
+            messCharges = pricing.monthly?.oneMeal || 0;
+            break;
+          default:
+            messCharges = pricing.monthly?.allMeals || 0;
+        }
+      }
+    } else {
+      messCharges = formData.mealsSelected ? 3000 : 0;
+    }
     const securityDeposit = rent;
     return {
       monthlyRent: rent,
@@ -145,6 +244,11 @@ const BookingPage = () => {
   }
 
   const totals = calculateTotal();
+
+  // Derived validation state for UI (disable confirm button if invalid)
+  const selectedRoomObj = selectedRoomId ? property.rooms.find(r => r._id === selectedRoomId || r._id === String(selectedRoomId)) : null;
+  const isInvalidSelection = Boolean(selectedRoomObj && ((roomsCount || 1) > (selectedRoomObj.availableRooms || 0) || (membersCount || 1) > ((selectedRoomObj.maxOccupancy || 1) * (roomsCount || 1))));
+  const isInvalidMessSelection = includeMess && (!selectedMessId || !selectedMessPlan);
 
   const plans = [
     {
@@ -262,16 +366,71 @@ const BookingPage = () => {
 
                 <div className="dates-form">
                   {property?.rooms && property.rooms.length > 0 && (
-                    <div className="form-group">
-                      <label>Choose Room</label>
-                      <select value={selectedRoomId || ''} onChange={e => setSelectedRoomId(e.target.value)}>
-                        <option value="">-- Select room --</option>
-                        {property.rooms.map(room => (
-                          <option key={room._id} value={room._id} disabled={room.availableRooms <= 0}>
-                            {room.roomName || room.roomNumber || room.roomType} - Available: {room.availableRooms} - Max Occupancy: {room.maxOccupancy}
-                          </option>
-                        ))}
-                      </select>
+                    <div>
+                      <div className="form-group">
+                        <label>Choose Room Type</label>
+                        <select value={selectedRoomId || ''} onChange={e => setSelectedRoomId(e.target.value)}>
+                          <option value="">-- Select room type --</option>
+                          {property.rooms.map(room => (
+                            <option key={room._id} value={room._id} disabled={room.availableRooms <= 0}>
+                              {room.roomName || room.roomNumber || room.roomType} - Available: {room.availableRooms} - Max: {room.maxOccupancy}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {selectedRoomId && (() => {
+                        const room = property.rooms.find(r => r._id === selectedRoomId || r._id === String(selectedRoomId));
+                        if (!room) return null;
+                        return (
+                          <div>
+                            <div className="form-group">
+                              <label>Number of Rooms</label>
+                              <input type="number" min={1} max={room.availableRooms || 1} value={roomsCount} onChange={e => setRoomsCount(Math.max(1, parseInt(e.target.value)||1))} />
+                              <span className="input-hint">Max {room.availableRooms} rooms available</span>
+                            </div>
+
+                            <div className="form-group">
+                              <label>Total Members</label>
+                              <input type="number" min={1} value={membersCount} onChange={e => setMembersCount(Math.max(1, parseInt(e.target.value)||1))} />
+                              <span className="input-hint">Max per room: {room.maxOccupancy} — total max: {room.maxOccupancy * roomsCount}</span>
+                            </div>
+                            <div className="form-group">
+                              <label>
+                                <input type="checkbox" checked={includeMess} onChange={e => setIncludeMess(e.target.checked)} /> Include Mess Service
+                              </label>
+                            </div>
+
+                            {includeMess && (
+                              <div>
+                                <div className="form-group">
+                                  <label>Choose Mess Provider</label>
+                                  <select value={selectedMessId || ''} onChange={e => setSelectedMessId(e.target.value)}>
+                                    <option value="">-- Select mess --</option>
+                                    {messOptions.map(m => (
+                                      <option key={m._id} value={m._id} disabled={!m.isActive}>
+                                        {m.name} — {m.location} — ₹{m.pricing?.monthly?.allMeals ? m.pricing.monthly.allMeals : (m.pricing?.daily?.fullDay || '—')}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                {selectedMessId && (
+                                  <div className="form-group">
+                                    <label>Plan</label>
+                                    <select value={selectedMessPlan} onChange={e => setSelectedMessPlan(e.target.value)}>
+                                      {/* Offer monthly options by default */}
+                                      <option value="monthly-all">Monthly — All Meals</option>
+                                      <option value="monthly-two">Monthly — Two Meals</option>
+                                      <option value="monthly-one">Monthly — One Meal</option>
+                                    </select>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                   <div className="form-group">
@@ -364,15 +523,16 @@ const BookingPage = () => {
                   <Button variant="secondary" onClick={() => setStep(2)}>
                     Back
                   </Button>
-                  <Button
-                    variant="primary"
-                    size="lg"
-                    onClick={handleSubmit}
-                    isLoading={submitting}
-                    leftIcon={<HiOutlineShieldCheck size={20} />}
-                  >
-                    Confirm Booking
-                  </Button>
+                    <Button
+                      variant="primary"
+                      size="lg"
+                      onClick={handleSubmit}
+                      disabled={isInvalidSelection || isInvalidMessSelection || submitting}
+                      isLoading={submitting}
+                      leftIcon={<HiOutlineShieldCheck size={20} />}
+                    >
+                      Confirm Booking
+                    </Button>
                 </div>
               </motion.div>
             )}

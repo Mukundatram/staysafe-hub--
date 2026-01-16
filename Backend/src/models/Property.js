@@ -9,6 +9,8 @@ const propertySchema = new mongoose.Schema({
   rent: { type: Number, required: true },
   amenities: [String],
   meals: { type: [String], default: [] },
+  // Optional link to a Mess service associated with this property
+  linkedMess: { type: mongoose.Schema.Types.ObjectId, ref: 'Mess', default: null },
   location: { type: String },
   // Coordinates for map display (Leaflet.js + OpenStreetMap)
   coordinates: {

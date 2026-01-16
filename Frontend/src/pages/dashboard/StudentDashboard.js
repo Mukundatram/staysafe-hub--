@@ -31,6 +31,7 @@ import {
   HiOutlineArrowRight
 } from 'react-icons/hi';
 import toast from 'react-hot-toast';
+import { connectSocket } from '../../services/socket';
 
 const StudentDashboard = () => {
   useAuth(); // Ensure user is authenticated
@@ -75,6 +76,38 @@ const StudentDashboard = () => {
     fetchDashboardData();
     fetchVerificationStatus();
     fetchMessSubscriptions();
+    // Connect socket and listen for mess subscription events
+    let socket;
+    try {
+      socket = connectSocket();
+      if (socket) {
+        socket.on('mess:subscription:created', (payload) => {
+          console.log('socket mess:subscription:created', payload);
+          toast.success('Your mess subscription request was received');
+          fetchMessSubscriptions();
+        });
+        socket.on('mess:subscription:cancelled', (payload) => {
+          console.log('socket mess:subscription:cancelled', payload);
+          toast('A mess subscription was cancelled');
+          fetchMessSubscriptions();
+        });
+        socket.on('mess:subscription:approved', (payload) => {
+          console.log('socket mess:subscription:approved', payload);
+          toast.success('Your mess subscription was approved');
+          fetchMessSubscriptions();
+        });
+      }
+    } catch (e) {
+      console.error('Socket init error (student):', e);
+    }
+
+    return () => {
+      if (socket) {
+        socket.off('mess:subscription:created');
+        socket.off('mess:subscription:cancelled');
+        socket.off('mess:subscription:approved');
+      }
+    };
   }, [fetchVerificationStatus, fetchMessSubscriptions]);
 
   const fetchDashboardData = async () => {

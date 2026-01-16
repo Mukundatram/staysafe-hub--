@@ -139,11 +139,16 @@ export const ownerService = {
     formData.append('location', propertyData.location || '');
     formData.append('amenities', propertyData.amenities?.join(',') || '');
     formData.append('meals', propertyData.meals?.join(',') || '');
+    if (propertyData.linkedMess) formData.append('linkedMess', propertyData.linkedMess);
     
     // Add coordinates if available
     if (propertyData.coordinates) {
       formData.append('coordinates', JSON.stringify(propertyData.coordinates));
     }
+    // Optional initial room inventory fields
+    if (propertyData.totalRooms !== undefined) formData.append('totalRooms', propertyData.totalRooms);
+    if (propertyData.maxOccupancy !== undefined) formData.append('maxOccupancy', propertyData.maxOccupancy);
+    if (propertyData.pricePerBed !== undefined) formData.append('pricePerBed', propertyData.pricePerBed);
     
     // Add images
     if (images && images.length > 0) {
@@ -193,6 +198,7 @@ export const ownerService = {
       });
       return response.data;
     } else {
+      // Include linkedMess when updating without new images
       const response = await api.put(`/owner/property/${propertyId}`, propertyData);
       return response.data;
     }

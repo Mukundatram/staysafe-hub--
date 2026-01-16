@@ -65,6 +65,15 @@ const PropertyDetailsPage = () => {
       navigate('/login', { state: { from: `/properties/${id}` } });
       return;
     }
+    // If property has rooms, ensure availability
+    const rooms = property?.rooms || [];
+    if (rooms.length > 0) {
+      const availableRooms = rooms.reduce((sum, r) => sum + (r.availableRooms || 0), 0);
+      if (availableRooms <= 0) {
+        toast.error('No rooms available for booking');
+        return;
+      }
+    }
     navigate(`/booking/${id}`);
   };
 
@@ -255,6 +264,26 @@ const PropertyDetailsPage = () => {
                   {description || 'A comfortable and safe place to stay. This verified property offers all the essentials for students and interns looking for reliable accommodation.'}
                 </p>
               </div>
+
+              {/* Rooms Inventory */}
+              {property.rooms && property.rooms.length > 0 && (() => {
+                const rooms = property.rooms || [];
+                const totalRooms = rooms.reduce((sum, r) => sum + (r.totalRooms || 0), 0);
+                const availableRooms = rooms.reduce((sum, r) => sum + (r.availableRooms || 0), 0);
+                const uniformMaxOccupancy = rooms.length > 0 && rooms.every(r => r.maxOccupancy === rooms[0].maxOccupancy) ? rooms[0].maxOccupancy : null;
+                const uniformPricePerBed = rooms.length > 0 && rooms.every(r => r.pricePerBed === rooms[0].pricePerBed) ? rooms[0].pricePerBed : null;
+                return (
+                  <div className="section">
+                    <h2>Room Inventory</h2>
+                    <div className="inventory-row">
+                      <div>Total rooms: <strong>{totalRooms}</strong></div>
+                      <div>Available: <strong>{availableRooms}</strong></div>
+                      <div>Members / room: <strong>{uniformMaxOccupancy ?? 'Varies'}</strong></div>
+                      <div>Price / bed: <strong>{uniformPricePerBed !== null ? `₹${uniformPricePerBed}` : 'Varies'}</strong></div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Amenities */}
               {amenities.length > 0 && (

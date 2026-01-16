@@ -3,6 +3,8 @@ const mongoose = require("mongoose");
 const { authenticate, authorize } = require("../middleware/authMiddleware");
 const Booking = require("../models/Booking");
 const Property = require("../models/Property");
+const Mess = require("../models/Mess");
+const MessSubscription = require("../models/MessSubscription");
 const User = require("../models/User");
 const notificationService = require("../services/notificationService");
 
@@ -104,6 +106,11 @@ router.post(
 
       // 5️⃣ Create booking (optionally for a specific room)
       const roomId = req.body.roomId;
+      let roomsCount = parseInt(req.body.roomsCount) || 1;
+      let membersCount = parseInt(req.body.membersCount) || 1;
+      if (roomsCount < 1) roomsCount = 1;
+      if (membersCount < 1) membersCount = 1;
+
       if (roomId) {
         const Room = require('../models/Room');
         if (!mongoose.Types.ObjectId.isValid(roomId)) {
@@ -111,11 +118,17 @@ router.post(
         }
         const room = await Room.findOne({ _id: roomId, property: property._id });
         if (!room) return res.status(400).json({ message: 'Room not found for this property' });
+        // Validate membersCount against room capacity
+        if (membersCount > roomsCount * (room.maxOccupancy || 1)) {
+          return res.status(400).json({ message: 'Members exceed room capacity for requested rooms' });
+        }
         // allow Pending bookings; availability enforced on confirm to avoid race on pending
         const booking = await Booking.create({
           student: req.user._id,
           property: property_id,
           room: room._id,
+          roomsCount,
+          membersCount,
           mealsSelected,
           startDate,
           endDate,
@@ -164,6 +177,102 @@ router.post(
         // Don't fail the booking if notification fails
       }
 
+      // 7️⃣ If request included a messId (subscribe to a mess along with booking), create a MessSubscription
+      try {
+        const messId = req.body.messId || req.body.mess || null;
+        const messPlan = req.body.messPlan || req.body.plan || null;
+        if (messId) {
+          const mess = await Mess.findById(messId);
+          if (!mess) {
+            // do not fail the booking; just warn
+            console.warn('[Booking] requested mess not found:', messId);
+          } else {
+            // Prevent duplicate active subscription
+            const existingSubscription = await MessSubscription.findOne({ user: req.user._id, mess: messId, status: 'Active' });
+            if (!existingSubscription) {
+              // Atomically reserve a mess slot before creating subscription
+              const maxSubs = mess.maxSubscribers || 100;
+              const reserved = await Mess.findOneAndUpdate(
+                { _id: mess._id, currentSubscribers: { $lt: maxSubs } },
+                { $inc: { currentSubscribers: 1, subscribersCount: 1 } },
+                { new: true }
+              );
+              if (!reserved) {
+                console.warn('[Booking] mess service full for messId:', messId);
+              } else {
+                // calculate amount similar to messRoutes
+                let amount = 0;
+                const pricing = mess.pricing || {};
+                switch (messPlan) {
+                  case 'monthly-all': amount = pricing.monthly?.allMeals || 0; break;
+                  case 'monthly-two': amount = pricing.monthly?.twoMeals || 0; break;
+                  case 'monthly-one': amount = pricing.monthly?.oneMeal || 0; break;
+                  case 'monthly-breakfast': amount = pricing.monthly?.breakfast || 0; break;
+                  case 'monthly-lunch': amount = pricing.monthly?.lunch || 0; break;
+                  case 'monthly-dinner': amount = pricing.monthly?.dinner || 0; break;
+                  default: amount = pricing.monthly?.allMeals || 0; break;
+                }
+
+                const start = new Date(req.body.messStartDate || Date.now());
+                const end = new Date(start);
+                end.setMonth(end.getMonth() + 1);
+
+                const subscription = new MessSubscription({
+                  user: req.user._id,
+                  mess: messId,
+                  plan: messPlan || 'monthly-all',
+                  selectedMeals: req.body.selectedMeals || [],
+                  startDate: start,
+                  endDate: end,
+                  amount,
+                  deliveryPreference: req.body.deliveryPreference || 'Pickup',
+                  deliveryAddress: req.body.deliveryAddress || '',
+                  specialInstructions: req.body.specialInstructions || '',
+                  status: 'Pending',
+                  paymentStatus: 'Pending'
+                });
+
+                try {
+                  await subscription.save();
+                  // Emit socket event for subscription creation (booking flow)
+                  try {
+                    const io = req.app.get('io');
+                    if (io) {
+                      const ownerId = mess && mess.owner ? (mess.owner._id ? mess.owner._id.toString() : mess.owner.toString()) : null;
+                      const userId = req.user._id.toString();
+                      if (ownerId) io.to(`user_${ownerId}`).emit('mess:subscription:created', { subscription, messId: mess._id, userId });
+                      io.to(`user_${userId}`).emit('mess:subscription:created', { subscription, messId: mess._id, ownerId });
+                    }
+                  } catch (emitErr) {
+                    console.error('Socket emit error (messSubscriptionCreated - booking):', emitErr);
+                  }
+                  // attach subscription to booking (best-effort)
+                  try {
+                    createdBooking.messSubscription = subscription._id;
+                    await createdBooking.save();
+                  } catch (attachErr) {
+                    console.error('[Booking] failed to attach mess subscription to booking:', attachErr);
+                  }
+                } catch (saveErr) {
+                  // rollback reserved counters
+                  try {
+                    await Mess.findByIdAndUpdate(messId, { $inc: { currentSubscribers: -1, subscribersCount: -1 } });
+                  } catch (rbErr) {
+                    console.error('Failed to rollback mess counters after booking subscription save failure:', rbErr);
+                  }
+                  console.error('[Booking] failed to save mess subscription:', saveErr);
+                }
+              }
+            } else {
+              console.warn('[Booking] user already has active subscription for mess:', messId);
+            }
+          }
+        }
+      } catch (messAttachErr) {
+        console.error('Error creating mess subscription during booking:', messAttachErr);
+        // Do not fail booking on mess subscription errors
+      }
+
       res.status(201).json({
         message: "Booking created successfully",
         booking: createdBooking,
@@ -207,21 +316,37 @@ router.patch(
       if (booking.room) {
         const Room = require('../models/Room');
         const room = await Room.findById(booking.room);
-        if (!room) {
-          return res.status(400).json({ message: 'Linked room not found' });
-        }
-
-        if (status === 'Confirmed' && prevStatus !== 'Confirmed') {
-          if (room.availableRooms <= 0) {
-            return res.status(400).json({ message: 'No availability for this room' });
+        if (room) {
+          const qty = booking.roomsCount || 1;
+          await Room.findByIdAndUpdate(room._id, { $inc: { availableRooms: qty } });
+          const refreshed = await Room.findById(room._id);
+          if (refreshed.availableRooms > refreshed.totalRooms) {
+            refreshed.availableRooms = refreshed.totalRooms;
+            await refreshed.save();
           }
-          room.availableRooms = Math.max(0, room.availableRooms - 1);
-          await room.save();
+        }
+        if (status === 'Confirmed' && prevStatus !== 'Confirmed') {
+          // Atomic decrement by roomsCount: ensure availableRooms >= roomsCount then decrement
+          const qty = booking.roomsCount || 1;
+          const updated = await Room.findOneAndUpdate(
+            { _id: room._id, availableRooms: { $gte: qty } },
+            { $inc: { availableRooms: -qty } },
+            { new: true }
+          );
+          if (!updated) {
+            return res.status(400).json({ message: 'No availability for the requested number of rooms' });
+          }
         }
 
         if (prevStatus === 'Confirmed' && status !== 'Confirmed') {
-          room.availableRooms = Math.min(room.totalRooms, room.availableRooms + 1);
-          await room.save();
+          // Increment availability atomically by roomsCount, then cap to totalRooms
+          const qty = booking.roomsCount || 1;
+          await Room.findByIdAndUpdate(room._id, { $inc: { availableRooms: qty } });
+          const refreshed = await Room.findById(room._id);
+          if (refreshed.availableRooms > refreshed.totalRooms) {
+            refreshed.availableRooms = refreshed.totalRooms;
+            await refreshed.save();
+          }
         }
 
         // Update property.isAvailable based on rooms
@@ -347,18 +472,27 @@ router.patch(
           const room = await Room.findById(booking.room);
           if (!room) return res.status(400).json({ message: 'Linked room not found' });
 
-          if (status === 'Confirmed' && prevStatus !== 'Confirmed') {
-            if (room.availableRooms <= 0) {
-              return res.status(400).json({ message: 'No availability for this room' });
+            if (status === 'Confirmed' && prevStatus !== 'Confirmed') {
+              const qty = booking.roomsCount || 1;
+              const updated = await Room.findOneAndUpdate(
+                { _id: room._id, availableRooms: { $gte: qty } },
+                { $inc: { availableRooms: -qty } },
+                { new: true }
+              );
+              if (!updated) {
+                return res.status(400).json({ message: 'No availability for the requested number of rooms' });
+              }
             }
-            room.availableRooms = Math.max(0, room.availableRooms - 1);
-            await room.save();
-          }
 
-          if (prevStatus === 'Confirmed' && status !== 'Confirmed') {
-            room.availableRooms = Math.min(room.totalRooms, room.availableRooms + 1);
-            await room.save();
-          }
+            if (prevStatus === 'Confirmed' && status !== 'Confirmed') {
+              const qty = booking.roomsCount || 1;
+              await Room.findByIdAndUpdate(room._id, { $inc: { availableRooms: qty } });
+              const refreshed = await Room.findById(room._id);
+              if (refreshed.availableRooms > refreshed.totalRooms) {
+                refreshed.availableRooms = refreshed.totalRooms;
+                await refreshed.save();
+              }
+            }
 
           const availableRoom = await require('../models/Room').findOne({ property: booking.property._id, availableRooms: { $gt: 0 } });
           await Property.findByIdAndUpdate(booking.property._id, { isAvailable: !!availableRoom });
@@ -486,10 +620,12 @@ router.patch(
       // Mark property as available again
       if (booking.room) {
         const Room = require('../models/Room');
-        const room = await Room.findById(booking.room);
-        if (room) {
-          room.availableRooms = Math.min(room.totalRooms, room.availableRooms + 1);
-          await room.save();
+        // Atomic increment
+        await Room.findByIdAndUpdate(booking.room, { $inc: { availableRooms: 1 } });
+        const refreshed = await Room.findById(booking.room);
+        if (refreshed && refreshed.availableRooms > refreshed.totalRooms) {
+          refreshed.availableRooms = refreshed.totalRooms;
+          await refreshed.save();
         }
         const availableRoom = await require('../models/Room').findOne({ property: booking.property._id, availableRooms: { $gt: 0 } });
         await Property.findByIdAndUpdate(booking.property._id, { isAvailable: !!availableRoom });

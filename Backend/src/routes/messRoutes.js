@@ -322,6 +322,19 @@ router.post('/:id/subscribe', protect, async (req, res) => {
     const end = new Date(start);
     end.setMonth(end.getMonth() + 1);
 
+    // Atomically reserve a slot by incrementing counters only if under maxSubscribers
+    const maxSubs = mess.maxSubscribers || 100;
+    const reserved = await Mess.findOneAndUpdate(
+      { _id: mess._id, currentSubscribers: { $lt: maxSubs } },
+      { $inc: { currentSubscribers: 1, subscribersCount: 1 } },
+      { new: true }
+    );
+
+    if (!reserved) {
+      return res.status(400).json({ error: 'Mess service is full' });
+    }
+
+    // Create subscription now that a slot has been reserved; rollback counter if save fails
     const subscription = new MessSubscription({
       user: req.user._id,
       mess: req.params.id,
@@ -337,17 +350,33 @@ router.post('/:id/subscribe', protect, async (req, res) => {
       paymentStatus: 'Pending'
     });
 
-    await subscription.save();
-
-    // Update subscriber count
-    await Mess.findByIdAndUpdate(req.params.id, {
-      $inc: { currentSubscribers: 1, subscribersCount: 1 }
-    });
-
-    res.status(201).json({
-      message: 'Subscription request sent successfully',
-      subscription
-    });
+    try {
+      await subscription.save();
+      // Emit socket event for new subscription
+      try {
+        const io = req.app.get('io');
+        if (io) {
+          const ownerId = mess && mess.owner ? (mess.owner._id ? mess.owner._id.toString() : mess.owner.toString()) : null;
+          const userId = req.user._id.toString();
+          if (ownerId) io.to(`user_${ownerId}`).emit('mess:subscription:created', { subscription, messId: mess._id, userId });
+          io.to(`user_${userId}`).emit('mess:subscription:created', { subscription, messId: mess._id, ownerId });
+        }
+      } catch (emitErr) {
+        console.error('Socket emit error (messSubscriptionCreated):', emitErr);
+      }
+      res.status(201).json({
+        message: 'Subscription request sent successfully',
+        subscription
+      });
+    } catch (saveErr) {
+      // rollback counters
+      try {
+        await Mess.findByIdAndUpdate(mess._id, { $inc: { currentSubscribers: -1, subscribersCount: -1 } });
+      } catch (rbErr) {
+        console.error('Failed to rollback mess counters after subscription save failure:', rbErr);
+      }
+      throw saveErr;
+    }
   } catch (error) {
     console.error('Error subscribing to mess:', error);
     res.status(500).json({ error: 'Failed to subscribe to mess service' });
@@ -388,6 +417,20 @@ router.patch('/subscriptions/:id/cancel', protect, async (req, res) => {
     await Mess.findByIdAndUpdate(subscription.mess, {
       $inc: { currentSubscribers: -1 }
     });
+
+    // Emit cancellation event
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        const mess = await Mess.findById(subscription.mess);
+        const ownerId = mess && mess.owner ? (mess.owner._id ? mess.owner._id.toString() : mess.owner.toString()) : null;
+        const userId = subscription.user ? (subscription.user._id ? subscription.user._id.toString() : subscription.user.toString()) : null;
+        if (ownerId) io.to(`user_${ownerId}`).emit('mess:subscription:cancelled', { subscription, messId: subscription.mess, userId });
+        if (userId) io.to(`user_${userId}`).emit('mess:subscription:cancelled', { subscription, messId: subscription.mess, ownerId });
+      }
+    } catch (emitErr) {
+      console.error('Socket emit error (messSubscriptionCancelled):', emitErr);
+    }
 
     res.json({
       message: 'Subscription cancelled successfully',
@@ -442,6 +485,19 @@ router.patch('/subscriptions/:id/approve', protect, authorize('owner', 'admin'),
 
     subscription.status = 'Active';
     await subscription.save();
+
+    // Emit approval event
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        const ownerId = subscription.mess && subscription.mess.owner ? (subscription.mess.owner._id ? subscription.mess.owner._id.toString() : subscription.mess.owner.toString()) : null;
+        const userId = subscription.user ? (subscription.user._id ? subscription.user._id.toString() : subscription.user.toString()) : null;
+        if (ownerId) io.to(`user_${ownerId}`).emit('mess:subscription:approved', { subscription, messId: subscription.mess, userId });
+        if (userId) io.to(`user_${userId}`).emit('mess:subscription:approved', { subscription, messId: subscription.mess, ownerId });
+      }
+    } catch (emitErr) {
+      console.error('Socket emit error (messSubscriptionApproved):', emitErr);
+    }
 
     res.json({
       message: 'Subscription approved successfully',

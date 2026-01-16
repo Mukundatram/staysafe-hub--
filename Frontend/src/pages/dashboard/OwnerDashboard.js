@@ -63,6 +63,10 @@ const OwnerDashboard = () => {
     amenities: '',
     meals: '',
     coordinates: null,
+    // optional initial room inventory
+    totalRooms: '',
+    maxOccupancy: '1',
+    pricePerBed: '0'
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -129,7 +133,7 @@ const OwnerDashboard = () => {
   const initialMessFormState = {
     name: '',
     description: '',
-    location: { address: '' },
+    location: { address: '', lat: null, lng: null },
     cuisineType: [],
     mealTypes: ['lunch', 'dinner'],
     menu: { breakfast: [], lunch: [], dinner: [], snacks: [] },
@@ -183,12 +187,27 @@ const OwnerDashboard = () => {
     }
   }, []);
 
+  
+
   useEffect(() => {
     fetchProperties();
     fetchVerificationStatus();
     fetchAnalytics();
     fetchMessServices();
   }, [fetchVerificationStatus, fetchAnalytics, fetchMessServices]);
+
+  const fetchOwnerBookings = useCallback(async () => {
+    try {
+      setBookingsLoading(true);
+      const data = await bookingService.getOwnerBookings();
+      console.log('Owner bookings API response:', data);
+      setOwnerBookings(Array.isArray(data) ? data : data.bookings || []);
+    } catch (err) {
+      console.error('Failed to fetch owner bookings:', err);
+    } finally {
+      setBookingsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchOwnerBookings();
@@ -207,6 +226,26 @@ const OwnerDashboard = () => {
         toast.success(`Booking ${payload.booking.status}`);
         fetchOwnerBookings();
       });
+      // Mess subscription realtime events
+      socket.on('mess:subscription:created', (payload) => {
+        console.log('socket mess:subscription:created', payload);
+        toast.info('New mess subscription received');
+        // Refresh owner's mess list and subscribers for the affected mess
+        fetchMessServices();
+        if (payload && payload.messId) fetchMessSubscribers(payload.messId);
+      });
+      socket.on('mess:subscription:cancelled', (payload) => {
+        console.log('socket mess:subscription:cancelled', payload);
+        toast('A mess subscription was cancelled');
+        fetchMessServices();
+        if (payload && payload.messId) fetchMessSubscribers(payload.messId);
+      });
+      socket.on('mess:subscription:approved', (payload) => {
+        console.log('socket mess:subscription:approved', payload);
+        toast.success('A mess subscription was approved');
+        fetchMessServices();
+        if (payload && payload.messId) fetchMessSubscribers(payload.messId);
+      });
     } catch (e) {
       console.error('Socket init error:', e);
     }
@@ -215,22 +254,12 @@ const OwnerDashboard = () => {
       if (socket) {
         socket.off('booking:requested');
         socket.off('booking:updated');
+        socket.off('mess:subscription:created');
+        socket.off('mess:subscription:cancelled');
+        socket.off('mess:subscription:approved');
       }
     };
-  }, []);
-
-  const fetchOwnerBookings = async () => {
-    try {
-      setBookingsLoading(true);
-      const data = await bookingService.getOwnerBookings();
-      console.log('Owner bookings API response:', data);
-      setOwnerBookings(Array.isArray(data) ? data : data.bookings || []);
-    } catch (err) {
-      console.error('Failed to fetch owner bookings:', err);
-    } finally {
-      setBookingsLoading(false);
-    }
-  };
+  }, [fetchOwnerBookings, fetchMessServices]);
 
   const handleOwnerStatusUpdate = async (bookingId, status) => {
     try {
@@ -532,6 +561,10 @@ const OwnerDashboard = () => {
         amenities: formData.amenities.split(',').map(a => a.trim()).filter(Boolean),
         meals: formData.meals.split(',').map(m => m.trim()).filter(Boolean),
         coordinates: formData.coordinates ? { lat: formData.coordinates.lat, lng: formData.coordinates.lng } : null,
+        totalRooms: formData.totalRooms ? parseInt(formData.totalRooms) : undefined,
+        maxOccupancy: formData.maxOccupancy ? parseInt(formData.maxOccupancy) : undefined,
+        pricePerBed: formData.pricePerBed ? Number(formData.pricePerBed) : undefined,
+        linkedMess: formData.linkedMess || undefined
       };
       await ownerService.addProperty(propertyData, selectedImages);
       toast.success('Property added successfully!');
@@ -556,6 +589,7 @@ const OwnerDashboard = () => {
       location: property.location || '',
       amenities: property.amenities?.join(', ') || '',
       meals: property.meals?.join(', ') || '',
+      linkedMess: property.linkedMess || '',
       coordinates: property.coordinates || null,
     });
     setShowEditModal(true);
@@ -582,6 +616,10 @@ const OwnerDashboard = () => {
         amenities: formData.amenities.split(',').map(a => a.trim()).filter(Boolean),
         meals: formData.meals.split(',').map(m => m.trim()).filter(Boolean),
         coordinates: formData.coordinates ? { lat: formData.coordinates.lat, lng: formData.coordinates.lng } : null,
+        totalRooms: formData.totalRooms ? parseInt(formData.totalRooms) : undefined,
+        maxOccupancy: formData.maxOccupancy ? parseInt(formData.maxOccupancy) : undefined,
+        pricePerBed: formData.pricePerBed ? Number(formData.pricePerBed) : undefined,
+        linkedMess: formData.linkedMess || undefined,
       };
       await ownerService.updateProperty(selectedProperty._id, propertyData);
       toast.success('Property updated successfully!');
@@ -646,6 +684,14 @@ const OwnerDashboard = () => {
     } else {
       setMessFormData(prev => ({ ...prev, [name]: value }));
     }
+  };
+
+  // Handle location selection for mess forms
+  const handleMessLocationSelect = ({ lat, lng, address }) => {
+    setMessFormData(prev => ({
+      ...prev,
+      location: { address, lat, lng }
+    }));
   };
 
   const handleCuisineToggle = (cuisine) => {
@@ -749,6 +795,7 @@ const OwnerDashboard = () => {
         description: messFormData.description,
         location: messFormData.location?.address || messFormData.location,
         address: messFormData.location?.address || '',
+        coordinates: messFormData.location?.lat ? { lat: messFormData.location.lat, lng: messFormData.location.lng } : undefined,
         contactPhone: messFormData.contactNumber,
         mealTypes: messFormData.mealTypes,
         cuisineType: messFormData.cuisineType,
@@ -778,7 +825,7 @@ const OwnerDashboard = () => {
     setMessFormData({
       name: mess.name || '',
       description: mess.description || '',
-      location: mess.location || { address: '' },
+      location: mess.location && typeof mess.location === 'object' ? { address: mess.location.address || mess.location, lat: mess.location.lat || null, lng: mess.location.lng || null } : { address: mess.location || '' , lat: null, lng: null },
       cuisineType: mess.cuisineType || [],
       mealTypes: mess.mealTypes || ['lunch', 'dinner'],
       menu: mess.menu || { breakfast: [], lunch: [], dinner: [], snacks: [] },
@@ -818,6 +865,7 @@ const OwnerDashboard = () => {
         description: messFormData.description,
         location: messFormData.location?.address || messFormData.location,
         address: messFormData.location?.address || '',
+        coordinates: messFormData.location?.lat ? { lat: messFormData.location.lat, lng: messFormData.location.lng } : undefined,
         contactPhone: messFormData.contactNumber,
         mealTypes: messFormData.mealTypes,
         cuisineType: messFormData.cuisineType,
@@ -1404,7 +1452,7 @@ const OwnerDashboard = () => {
                       
                       <p className="mess-location">
                         <HiOutlineLocationMarker size={16} />
-                        {mess.location?.address || 'Location not set'}
+                        {mess.location?.address || mess.address || mess.location || 'Location not set'}
                       </p>
                       
                       <div className="mess-stats">
@@ -1863,6 +1911,45 @@ const OwnerDashboard = () => {
                   </div>
                 </div>
 
+                <div className="form-row">
+                  <div className="form-group">
+                    <Input
+                      label="Total Rooms (optional)"
+                      name="totalRooms"
+                      type="number"
+                      placeholder="e.g., 10"
+                      value={formData.totalRooms}
+                      onChange={handleInputChange}
+                      min={1}
+                    />
+                    <span className="input-hint">If provided, an initial room inventory will be created for this property.</span>
+                  </div>
+
+                  <div className="form-group">
+                    <Input
+                      label="Members per Room"
+                      name="maxOccupancy"
+                      type="number"
+                      placeholder="e.g., 2"
+                      value={formData.maxOccupancy}
+                      onChange={handleInputChange}
+                      min={1}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <Input
+                      label="Price per Bed (₹)"
+                      name="pricePerBed"
+                      type="number"
+                      placeholder="e.g., 5000"
+                      value={formData.pricePerBed}
+                      onChange={handleInputChange}
+                      min={0}
+                    />
+                  </div>
+                </div>
+
                 {/* Location Picker with Map */}
                 <div className="form-group">
                   <label className="form-label">Property Location</label>
@@ -1894,6 +1981,17 @@ const OwnerDashboard = () => {
                     onChange={handleInputChange}
                   />
                   <span className="input-hint">Leave empty if meals are not included</span>
+                </div>
+
+                <div className="form-group">
+                  <label>Link Mess Service (optional)</label>
+                  <select value={formData.linkedMess || ''} onChange={e => setFormData(prev => ({ ...prev, linkedMess: e.target.value }))}>
+                    <option value="">-- No linked mess --</option>
+                    {messServices.map(ms => (
+                      <option key={ms._id} value={ms._id}>{ms.name} — {ms.location}</option>
+                    ))}
+                  </select>
+                  <span className="input-hint">Link an existing mess service to this property (optional)</span>
                 </div>
 
                 {/* Image Upload Section */}
@@ -2101,6 +2199,39 @@ const OwnerDashboard = () => {
                   </div>
                 </div>
 
+                <div className="form-row">
+                  <div className="form-group">
+                    <Input
+                      label="Total Rooms (optional)"
+                      name="totalRooms"
+                      type="number"
+                      value={formData.totalRooms}
+                      onChange={handleInputChange}
+                      min={1}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <Input
+                      label="Members per Room"
+                      name="maxOccupancy"
+                      type="number"
+                      value={formData.maxOccupancy}
+                      onChange={handleInputChange}
+                      min={1}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <Input
+                      label="Price per Bed (₹)"
+                      name="pricePerBed"
+                      type="number"
+                      value={formData.pricePerBed}
+                      onChange={handleInputChange}
+                      min={0}
+                    />
+                  </div>
+                </div>
+
                 {/* Location Picker with Map */}
                 <div className="form-group">
                   <label className="form-label">Property Location</label>
@@ -2128,6 +2259,17 @@ const OwnerDashboard = () => {
                     value={formData.meals}
                     onChange={handleInputChange}
                   />
+                </div>
+
+                <div className="form-group">
+                  <label>Link Mess Service (optional)</label>
+                  <select value={formData.linkedMess || ''} onChange={e => setFormData(prev => ({ ...prev, linkedMess: e.target.value }))}>
+                    <option value="">-- No linked mess --</option>
+                    {messServices.map(ms => (
+                      <option key={ms._id} value={ms._id}>{ms.name} — {ms.location}</option>
+                    ))}
+                  </select>
+                  <span className="input-hint">Link an existing mess service to this property (optional)</span>
                 </div>
 
                 <div className="modal-actions">
@@ -2372,13 +2514,12 @@ const OwnerDashboard = () => {
                   />
                 </div>
 
-                <Input
-                  label="Address"
-                  name="location.address"
-                  value={messFormData.location.address}
-                  onChange={handleMessInputChange}
-                  placeholder="Full address"
-                  required
+                <label className="form-label">Address</label>
+                <LocationPicker
+                  initialLocation={messFormData.location?.lat ? { lat: messFormData.location.lat, lng: messFormData.location.lng, address: messFormData.location.address } : null}
+                  onLocationChange={handleMessLocationSelect}
+                  height="220px"
+                  placeholder="Search for mess address..."
                 />
 
                 <div className="form-group">
@@ -2660,13 +2801,12 @@ const OwnerDashboard = () => {
                   />
                 </div>
 
-                <Input
-                  label="Address"
-                  name="location.address"
-                  value={messFormData.location.address}
-                  onChange={handleMessInputChange}
-                  placeholder="Full address"
-                  required
+                <label className="form-label">Address</label>
+                <LocationPicker
+                  initialLocation={messFormData.location?.lat ? { lat: messFormData.location.lat, lng: messFormData.location.lng, address: messFormData.location.address } : null}
+                  onLocationChange={handleMessLocationSelect}
+                  height="220px"
+                  placeholder="Search for mess address..."
                 />
 
                 <div className="form-group">
