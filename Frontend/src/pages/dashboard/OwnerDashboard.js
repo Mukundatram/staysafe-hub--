@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ownerService, chatService, aiService } from '../../services/propertyService';
+import { ownerService, chatService, aiService, bookingService } from '../../services/propertyService';
 import messService from '../../services/messService';
 import { useAuth } from '../../context/AuthContext';
 import Loading from '../../components/ui/Loading';
@@ -10,6 +10,7 @@ import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import EmptyState from '../../components/ui/EmptyState';
+import ReviewList from '../../components/review/ReviewList';
 import { LocationPicker, MapComponent } from '../../components/map';
 import { ChatModal, ChatList } from '../../components/chat';
 import documentService from '../../services/documentService';
@@ -29,6 +30,7 @@ import {
   HiOutlinePhotograph,
   HiOutlineWifi,
   HiOutlineCake,
+  HiOutlineCalendar,
   HiOutlineMap,
   HiOutlineChatAlt2,
   HiOutlineBadgeCheck,
@@ -75,6 +77,13 @@ const OwnerDashboard = () => {
   // Analytics state
   const [analytics, setAnalytics] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  // Owner bookings
+  const [ownerBookings, setOwnerBookings] = useState([]);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
+  const [bookingActionLoading, setBookingActionLoading] = useState(null);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [showBookingModal, setShowBookingModal] = useState(false);
 
   // AI Description Generator state
   const [showAIModal, setShowAIModal] = useState(false);
@@ -161,6 +170,42 @@ const OwnerDashboard = () => {
     fetchAnalytics();
     fetchMessServices();
   }, [fetchVerificationStatus, fetchAnalytics, fetchMessServices]);
+
+  useEffect(() => {
+    fetchOwnerBookings();
+  }, []);
+
+  const fetchOwnerBookings = async () => {
+    try {
+      setBookingsLoading(true);
+      const data = await bookingService.getOwnerBookings();
+      console.log('Owner bookings API response:', data);
+      setOwnerBookings(Array.isArray(data) ? data : data.bookings || []);
+    } catch (err) {
+      console.error('Failed to fetch owner bookings:', err);
+    } finally {
+      setBookingsLoading(false);
+    }
+  };
+
+  const handleOwnerStatusUpdate = async (bookingId, status) => {
+    try {
+      setBookingActionLoading(bookingId);
+      const resp = await bookingService.updateStatusOwner(bookingId, status);
+      console.log('Owner update booking response:', resp);
+      toast.success(`Booking ${status.toLowerCase()} successfully!`);
+      fetchOwnerBookings();
+      fetchProperties();
+      setShowBookingModal(false);
+    } catch (err) {
+      console.error('Failed to update booking as owner:', err);
+      // Show backend error message if available
+      const serverMsg = err?.response?.data?.message || err?.message;
+      toast.error(serverMsg || 'Failed to update booking');
+    } finally {
+      setBookingActionLoading(null);
+    }
+  };
 
   // Fetch unread message count
   useEffect(() => {
@@ -850,6 +895,18 @@ const OwnerDashboard = () => {
             )}
           </button>
           <button
+            className={`tab ${activeTab === 'bookings' ? 'active' : ''}`}
+            onClick={() => setActiveTab('bookings')}
+          >
+            Bookings
+          </button>
+          <button
+            className={`tab ${activeTab === 'reviews' ? 'active' : ''}`}
+            onClick={() => setActiveTab('reviews')}
+          >
+            Reviews
+          </button>
+          <button
             className={`tab ${activeTab === 'analytics' ? 'active' : ''}`}
             onClick={() => setActiveTab('analytics')}
           >
@@ -865,8 +922,107 @@ const OwnerDashboard = () => {
           </button>
         </motion.div>
 
-        {/* Messages Section */}
-        {activeTab === 'messages' ? (
+        {/* Bookings Section */}
+        {activeTab === 'bookings' ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <Card padding="lg">
+              <div className="card-header">
+                <h2>
+                  <HiOutlineEye size={24} />
+                  Booking Requests
+                </h2>
+              </div>
+
+              {bookingsLoading ? (
+                <Loading size="md" text="Loading bookings..." />
+              ) : ownerBookings.length === 0 ? (
+                <EmptyState
+                  icon={HiOutlineEye}
+                  title="No bookings"
+                  description="No booking requests for your properties yet."
+                />
+              ) : (
+                <div className="bookings-grid">
+                  {ownerBookings.map((booking) => (
+                    <div key={booking._id} className="booking-card">
+                      <div className="booking-header">
+                        <Badge variant={booking.status === 'Confirmed' ? 'success' : booking.status === 'Pending' ? 'warning' : 'error'}>
+                          {booking.status}
+                        </Badge>
+                        <span className="booking-id">#{booking._id?.slice(-6)}</span>
+                      </div>
+
+                      <div className="booking-student">
+                        <div className="user-avatar">{booking.student?.name?.charAt(0) || 'U'}</div>
+                        <div className="user-info">
+                          <span className="user-name">{booking.student?.name || 'Unknown'}</span>
+                          <span className="user-email">{booking.student?.email || 'No email'}</span>
+                        </div>
+                      </div>
+
+                      <div className="booking-property">
+                        <HiOutlineHome size={18} />
+                        <span>{booking.property?.title || 'Property'}</span>
+                      </div>
+
+                      <div className="booking-dates">
+                        <HiOutlineCalendar size={16} />
+                        <span>{new Date(booking.startDate).toLocaleDateString()} - {new Date(booking.endDate).toLocaleDateString()}</span>
+                      </div>
+
+                      <div className="booking-actions">
+                        <Button variant="secondary" size="sm" onClick={() => { setSelectedBooking(booking); setShowBookingModal(true); }} leftIcon={<HiOutlineEye size={16} />}>View</Button>
+                        {booking.status === 'Pending' && (
+                          <>
+                            <Button variant="primary" size="sm" onClick={() => handleOwnerStatusUpdate(booking._id, 'Confirmed')} isLoading={bookingActionLoading === booking._id} leftIcon={<HiOutlineCheck size={16} />}>Approve</Button>
+                            <Button variant="danger" size="sm" onClick={() => handleOwnerStatusUpdate(booking._id, 'Rejected')} isLoading={bookingActionLoading === booking._id} leftIcon={<HiOutlineX size={16} />}>Reject</Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </motion.div>
+        ) : 
+        // Messages Section
+        activeTab === 'reviews' ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <Card padding="lg">
+              <div className="card-header">
+                <h2>
+                  <HiOutlineStar size={24} />
+                  Property Reviews
+                </h2>
+              </div>
+              {properties.length === 0 ? (
+                <EmptyState icon={HiOutlineStar} title="No properties" description="Add properties to receive reviews." />
+              ) : (
+                <div className="owner-reviews-list">
+                  {properties.map((property) => (
+                    <Card key={property._id} padding="md" className="property-review-card">
+                      <div className="property-review-header">
+                        <h3>{property.title}</h3>
+                        <span className="property-meta">₹{property.rent?.toLocaleString()}/month</span>
+                      </div>
+                      <ReviewList propertyId={property._id} averageRating={property.rating?.average || 0} reviewCount={property.rating?.count || 0} ratingBreakdown={property.rating?.distribution || {}} allowOwnerRespond={true} />
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </motion.div>
+        ) : 
+        activeTab === 'messages' ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1400,6 +1556,75 @@ const OwnerDashboard = () => {
             ownerName={selectedChatData.ownerName}
           />
         )}
+
+        {/* Booking Detail Modal */}
+        <AnimatePresence>
+          {showBookingModal && selectedBooking && (
+            <div className="modal-overlay" onClick={() => setShowBookingModal(false)}>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="modal"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="modal-header">
+                  <h2>Booking Details</h2>
+                  <button className="close-btn" onClick={() => setShowBookingModal(false)}>
+                    <HiOutlineX size={24} />
+                  </button>
+                </div>
+
+                <div className="modal-body">
+                  <div className="detail-section">
+                    <h3>Booking Status</h3>
+                    <Badge variant={selectedBooking.status === 'Confirmed' ? 'success' : selectedBooking.status === 'Pending' ? 'warning' : 'error'} size="lg">{selectedBooking.status}</Badge>
+                    <p className="booking-id-full">Booking ID: {selectedBooking._id}</p>
+                  </div>
+
+                  <div className="detail-section">
+                    <h3>Student Information</h3>
+                    <div className="detail-row">
+                      <span className="detail-label">Name:</span>
+                      <span className="detail-value">{selectedBooking.student?.name || 'N/A'}</span>
+                    </div>
+                    <div className="detail-row">
+                      <span className="detail-label">Email:</span>
+                      <span className="detail-value">{selectedBooking.student?.email || 'N/A'}</span>
+                    </div>
+                  </div>
+
+                  <div className="detail-section">
+                    <h3>Property Information</h3>
+                    <div className="detail-row">
+                      <span className="detail-label">Title:</span>
+                      <span className="detail-value">{selectedBooking.property?.title || 'N/A'}</span>
+                    </div>
+                  </div>
+
+                  <div className="detail-section">
+                    <h3>Booking Duration</h3>
+                    <div className="detail-row">
+                      <span className="detail-label">Start Date:</span>
+                      <span className="detail-value">{new Date(selectedBooking.startDate).toLocaleDateString()}</span>
+                    </div>
+                    <div className="detail-row">
+                      <span className="detail-label">End Date:</span>
+                      <span className="detail-value">{new Date(selectedBooking.endDate).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {selectedBooking.status === 'Pending' && (
+                  <div className="modal-actions">
+                    <Button variant="danger" onClick={() => handleOwnerStatusUpdate(selectedBooking._id, 'Rejected')} isLoading={bookingActionLoading === selectedBooking._id} leftIcon={<HiOutlineX size={16} />}>Reject Booking</Button>
+                    <Button variant="primary" onClick={() => handleOwnerStatusUpdate(selectedBooking._id, 'Confirmed')} isLoading={bookingActionLoading === selectedBooking._id} leftIcon={<HiOutlineCheck size={16} />}>Approve Booking</Button>
+                  </div>
+                )}
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Add Property Modal */}

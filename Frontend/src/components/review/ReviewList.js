@@ -8,15 +8,17 @@ import {
   HiOutlineFilter
 } from 'react-icons/hi';
 import { reviewService } from '../../services/propertyService';
+import toast from 'react-hot-toast';
 import { formatDistanceToNow } from 'date-fns';
 
-const ReviewList = ({ propertyId, averageRating = 0, reviewCount = 0, ratingBreakdown = {} }) => {
+const ReviewList = ({ propertyId, averageRating = 0, reviewCount = 0, ratingBreakdown = {}, allowOwnerRespond = false }) => {
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
   const [ratingDistribution, setRatingDistribution] = useState({});
   const [sortBy, setSortBy] = useState('newest');
   const [helpedReviews, setHelpedReviews] = useState(new Set());
+  const [respondTexts, setRespondTexts] = useState({});
 
   const fetchReviews = React.useCallback(async (page = 1, sort = sortBy) => {
     try {
@@ -49,6 +51,25 @@ const ReviewList = ({ propertyId, averageRating = 0, reviewCount = 0, ratingBrea
       );
     } catch (error) {
       console.error('Error marking helpful:', error);
+    }
+  };
+
+  const handleRespond = async (reviewId) => {
+    const comment = (respondTexts[reviewId] || '').trim();
+    if (!comment) {
+      toast.error('Please enter a response');
+      return;
+    }
+
+    try {
+      const res = await reviewService.respond(reviewId, comment);
+      const updatedReview = res.review || { ownerResponse: { comment, respondedAt: new Date() } };
+      setReviews(prev => prev.map(r => r._id === reviewId ? updatedReview : r));
+      setRespondTexts(prev => ({ ...prev, [reviewId]: '' }));
+      toast.success('Response posted');
+    } catch (err) {
+      console.error('Error responding to review:', err);
+      toast.error('Failed to post response');
     }
   };
 
@@ -201,6 +222,22 @@ const ReviewList = ({ propertyId, averageRating = 0, reviewCount = 0, ratingBrea
                     <div className="owner-response">
                       <span className="response-label">Owner's Response:</span>
                       <p>{review.ownerResponse.comment}</p>
+                    </div>
+                  )}
+
+                  {/* Owner respond UI */}
+                  {allowOwnerRespond && !review.ownerResponse?.comment && (
+                    <div className="owner-respond-form">
+                      <textarea
+                        placeholder="Write a response to this review"
+                        value={respondTexts[review._id] || ''}
+                        onChange={(e) => setRespondTexts(prev => ({ ...prev, [review._id]: e.target.value }))}
+                        rows={3}
+                        className="respond-input"
+                      />
+                      <div className="respond-actions">
+                        <button className="respond-btn" onClick={() => handleRespond(review._id)}>Respond</button>
+                      </div>
                     </div>
                   )}
 

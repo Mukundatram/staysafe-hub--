@@ -62,6 +62,18 @@ export const bookingService = {
     return response.data;
   },
 
+  // Get bookings for properties owned by current owner
+  getOwnerBookings: async () => {
+    const response = await api.get('/bookings/owner');
+    return response.data;
+  },
+
+  // Approve or reject booking as owner for bookings that belong to their properties
+  updateStatusOwner: async (bookingId, status) => {
+    const response = await api.patch(`/bookings/owner/${bookingId}`, { status });
+    return response.data;
+  },
+
   // Leave room / End stay (Student only)
   leaveRoom: async (bookingId, reason = '') => {
     const response = await api.patch(`/bookings/leave/${bookingId}`, { reason });
