@@ -6,6 +6,11 @@ let socket = null;
 export function connectSocket() {
   if (socket) return socket;
   const token = getToken();
+  if (!token) {
+    console.warn('[socket] not connecting: no auth token present');
+    return null;
+  }
+
   socket = ioClient('/', {
     auth: { token },
     path: '/socket.io'
@@ -31,4 +36,19 @@ export function disconnectSocket() {
     socket.disconnect();
     socket = null;
   }
+}
+
+// Attempt to reconnect using token if present. Safe to call after login.
+export function reconnectSocket() {
+  const token = getToken();
+  if (!token) {
+    console.warn('[socket] reconnect skipped: no auth token present');
+    return null;
+  }
+  // If an existing socket exists, disconnect first to ensure fresh auth
+  if (socket) {
+    socket.disconnect();
+    socket = null;
+  }
+  return connectSocket();
 }

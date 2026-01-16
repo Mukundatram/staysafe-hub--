@@ -70,10 +70,18 @@ const io = new Server(server, {
 // Simple auth for socket connections using JWT
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token || socket.handshake.query?.token;
-  if (!token) return next();
+  if (!token) {
+    console.log('[Socket] handshake: no token provided');
+    return next();
+  }
+  console.log('[Socket] handshake: token present');
   jwt.verify(token, process.env.JWT_SECRET || 'secret', (err, decoded) => {
-    if (err) return next();
+    if (err) {
+      console.log('[Socket] token present but verification failed');
+      return next();
+    }
     socket.user = decoded;
+    console.log('[Socket] token verified; user attached to socket');
     return next();
   });
 });
