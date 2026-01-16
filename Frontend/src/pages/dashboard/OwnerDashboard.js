@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ownerService, chatService, aiService, bookingService } from '../../services/propertyService';
+import { ownerService, propertyService, chatService, aiService, bookingService } from '../../services/propertyService';
 import messService from '../../services/messService';
 import { useAuth } from '../../context/AuthContext';
 import Loading from '../../components/ui/Loading';
@@ -16,6 +16,7 @@ import { ChatModal, ChatList } from '../../components/chat';
 import documentService from '../../services/documentService';
 import analyticsService from '../../services/analyticsService';
 import toast from 'react-hot-toast';
+import { connectSocket } from '../../services/socket';
 import {
   HiOutlineHome,
   HiOutlinePlus,
@@ -84,6 +85,24 @@ const OwnerDashboard = () => {
   const [bookingActionLoading, setBookingActionLoading] = useState(null);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showBookingModal, setShowBookingModal] = useState(false);
+
+  // Rooms management state
+  const [roomsModalOpen, setRoomsModalOpen] = useState(false);
+  const [roomsForProperty, setRoomsForProperty] = useState([]);
+  const [roomsLoading, setRoomsLoading] = useState(false);
+  const [currentRoomProperty, setCurrentRoomProperty] = useState(null);
+  const [roomForm, setRoomForm] = useState({
+    roomName: '',
+    roomNumber: '',
+    roomType: 'single',
+    maxOccupancy: 1,
+    totalRooms: 1,
+    availableRooms: 1,
+    pricePerBed: 0,
+    pricePerRoom: 0,
+    genderPreference: 'any'
+  });
+  const [editingRoomId, setEditingRoomId] = useState(null);
 
   // AI Description Generator state
   const [showAIModal, setShowAIModal] = useState(false);
@@ -173,6 +192,31 @@ const OwnerDashboard = () => {
 
   useEffect(() => {
     fetchOwnerBookings();
+
+    // Connect socket and listen for booking events
+    let socket;
+    try {
+      socket = connectSocket();
+      socket.on('booking:requested', (payload) => {
+        console.log('socket booking:requested', payload);
+        toast.info('New booking request received');
+        fetchOwnerBookings();
+      });
+      socket.on('booking:updated', (payload) => {
+        console.log('socket booking:updated', payload);
+        toast.success(`Booking ${payload.booking.status}`);
+        fetchOwnerBookings();
+      });
+    } catch (e) {
+      console.error('Socket init error:', e);
+    }
+
+    return () => {
+      if (socket) {
+        socket.off('booking:requested');
+        socket.off('booking:updated');
+      }
+    };
   }, []);
 
   const fetchOwnerBookings = async () => {
@@ -225,12 +269,22 @@ const OwnerDashboard = () => {
 
   // Chat handlers
   const handleSelectChat = (conversation) => {
-    setSelectedChatData({
-      property: conversation.property,
-      ownerId: conversation.otherUser._id,
-      ownerName: conversation.otherUser.name
-    });
-    setChatModalOpen(true);
+    try {
+      if (!conversation || !conversation.otherUser) {
+        toast.error('User for this conversation is not available');
+        return;
+      }
+
+      setSelectedChatData({
+        property: conversation.property,
+        ownerId: conversation.otherUser._id,
+        ownerName: conversation.otherUser.name
+      });
+      setChatModalOpen(true);
+    } catch (err) {
+      console.error('handleSelectChat error:', err);
+      toast.error('Unable to open chat: user not available');
+    }
   };
 
   const handleCloseChat = () => {
@@ -251,6 +305,84 @@ const OwnerDashboard = () => {
     }
   };
 
+  const openRoomsModal = async (property) => {
+    try {
+      setCurrentRoomProperty(property);
+      setRoomsModalOpen(true);
+      setRoomsLoading(true);
+      // Try owner-specific rooms endpoint first
+      let rooms = [];
+      try {
+        const resp = await ownerService.getRooms(property._id);
+        // ownerService may return an array or an object { rooms: [] }
+        rooms = Array.isArray(resp) ? resp : (resp?.rooms || resp?.data || []);
+      } catch (ownerErr) {
+        console.warn('ownerService.getRooms failed, falling back to property GET', ownerErr);
+        // Fallback: property GET returns the property with attached `rooms` array
+        try {
+          const prop = await propertyService.getById(property._id);
+          rooms = Array.isArray(prop?.rooms) ? prop.rooms : [];
+        } catch (propErr) {
+          console.error('Fallback property GET failed:', propErr);
+          throw ownerErr || propErr;
+        }
+      }
+      setRoomsForProperty(Array.isArray(rooms) ? rooms : []);
+    } catch (err) {
+      console.error('Failed to fetch rooms:', err);
+      const msg = err?.response?.data?.message || err?.message || 'Failed to load rooms';
+      toast.error(msg);
+    } finally {
+      setRoomsLoading(false);
+    }
+  };
+
+  const handleRoomInputChange = (e) => {
+    const { name, value } = e.target;
+    setRoomForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleAddRoom = async (e) => {
+    e.preventDefault();
+    if (!currentRoomProperty) return toast.error('No property selected');
+    try {
+      setRoomsLoading(true);
+      const payload = {
+        ...roomForm,
+        maxOccupancy: Number(roomForm.maxOccupancy),
+        totalRooms: Number(roomForm.totalRooms),
+        availableRooms: Number(roomForm.availableRooms),
+        pricePerBed: Number(roomForm.pricePerBed),
+        pricePerRoom: Number(roomForm.pricePerRoom)
+      };
+      if (editingRoomId) {
+        await ownerService.updateRoom(currentRoomProperty._id, editingRoomId, payload);
+        toast.success('Room updated');
+      } else {
+        await ownerService.addRoom(currentRoomProperty._id, payload);
+        toast.success('Room added');
+      }
+      // refresh list
+      const rooms = await ownerService.getRooms(currentRoomProperty._id);
+      setRoomsForProperty(Array.isArray(rooms) ? rooms : []);
+      setRoomForm({ roomName: '', roomNumber: '', roomType: 'single', maxOccupancy: 1, totalRooms: 1, availableRooms: 1, pricePerBed: 0, pricePerRoom: 0, genderPreference: 'any' });
+      setEditingRoomId(null);
+    } catch (err) {
+      console.error('Add room failed:', err);
+      // Show detailed server response when available to help debugging
+      const serverMsg = err?.response?.data?.message || err?.response?.data || err?.message;
+      if (err?.response?.status === 401) {
+        toast.error('Unauthorized. Please login again.');
+      } else if (err?.response?.status === 403) {
+        toast.error('Forbidden. You do not have permission to add rooms.');
+      } else {
+        toast.error(serverMsg || 'Failed to add room');
+      }
+    } finally {
+      setRoomsLoading(false);
+    }
+  };
+
   const handleRefresh = async () => {
     toast.promise(fetchProperties(), {
       loading: 'Refreshing properties...',
@@ -263,8 +395,6 @@ const OwnerDashboard = () => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
-
-  // AI Description Generator handlers
   const handleAIInputChange = (e) => {
     const { name, value } = e.target;
     setAiFormData(prev => ({ ...prev, [name]: value }));
@@ -282,6 +412,38 @@ const OwnerDashboard = () => {
     });
     setShowAIModal(true);
   };
+  const handleEditRoom = (room) => {
+    setEditingRoomId(room._id);
+    setRoomForm({
+      roomName: room.roomName || '',
+      roomNumber: room.roomNumber || '',
+      roomType: room.roomType || 'single',
+      maxOccupancy: room.maxOccupancy || 1,
+      totalRooms: room.totalRooms || 1,
+      availableRooms: room.availableRooms || 1,
+      pricePerBed: room.pricePerBed || 0,
+      pricePerRoom: room.pricePerRoom || 0,
+      genderPreference: room.genderPreference || 'any'
+    });
+  };
+
+  const handleDeleteRoom = async (room) => {
+    if (!currentRoomProperty) return;
+    if (!window.confirm('Are you sure you want to delete this room?')) return;
+    try {
+      setRoomsLoading(true);
+      await ownerService.deleteRoom(currentRoomProperty._id, room._id);
+      const rooms = await ownerService.getRooms(currentRoomProperty._id);
+      setRoomsForProperty(Array.isArray(rooms) ? rooms : []);
+      toast.success('Room deleted');
+    } catch (err) {
+      console.error('Delete room failed:', err);
+      toast.error('Failed to delete room');
+    } finally {
+      setRoomsLoading(false);
+    }
+  };
+  
 
   const generateAIDescription = async () => {
     if (!aiFormData.location || !aiFormData.rent) {
@@ -1529,6 +1691,14 @@ const OwnerDashboard = () => {
                         Edit
                       </Button>
                       <Button
+                        variant="secondary"
+                        size="sm"
+                        leftIcon={<HiOutlineUsers size={16} />}
+                        onClick={() => openRoomsModal(property)}
+                      >
+                        Manage Rooms
+                      </Button>
+                      <Button
                         variant="ghost"
                         size="sm"
                         leftIcon={<HiOutlineTrash size={16} />}
@@ -1784,6 +1954,89 @@ const OwnerDashboard = () => {
           </div>
         )}
       </AnimatePresence>
+
+        {/* Rooms Modal */}
+        {roomsModalOpen && currentRoomProperty && (
+          <div className="modal-overlay" onClick={() => setRoomsModalOpen(false)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="modal"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="modal-header">
+                <h2>Rooms for {currentRoomProperty.title}</h2>
+                <button className="close-btn" onClick={() => setRoomsModalOpen(false)}>
+                  <HiOutlineX size={24} />
+                </button>
+              </div>
+
+              <div className="modal-body">
+                <div className="rooms-list">
+                  {roomsLoading ? (
+                    <Loading size="md" text="Loading rooms..." />
+                  ) : roomsForProperty.length === 0 ? (
+                    <EmptyState title="No rooms yet" description="Add rooms for this property to enable room-level bookings." />
+                  ) : (
+                    roomsForProperty.map(r => (
+                      <Card key={r._id} padding="sm" className="room-card">
+                        <div className="room-row">
+                          <div>
+                            <strong>{r.roomName || r.roomNumber || r.roomType}</strong>
+                            <div>Type: {r.roomType} • Max: {r.maxOccupancy}</div>
+                          </div>
+                          <div>
+                            <div>Available: {r.availableRooms}/{r.totalRooms}</div>
+                            <div>Price per room: ₹{r.pricePerRoom || 0}</div>
+                          </div>
+                          <div className="room-actions">
+                            <Button variant="outline" size="sm" onClick={() => handleEditRoom(r)}>Edit</Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleDeleteRoom(r)}>Delete</Button>
+                          </div>
+                        </div>
+                      </Card>
+                    ))
+                  )}
+                </div>
+
+                <div className="add-room-form">
+                  <h3>Add Room</h3>
+                  <form onSubmit={handleAddRoom}>
+                    <div className="form-grid">
+                      <Input label="Room Name" name="roomName" value={roomForm.roomName} onChange={handleRoomInputChange} />
+                      <Input label="Room Number" name="roomNumber" value={roomForm.roomNumber} onChange={handleRoomInputChange} />
+                      <label>Room Type
+                        <select name="roomType" value={roomForm.roomType} onChange={handleRoomInputChange}>
+                          <option value="single">Single</option>
+                          <option value="double">Double</option>
+                          <option value="triple">Triple</option>
+                          <option value="dorm">Dorm</option>
+                        </select>
+                      </label>
+                      <Input label="Max Occupancy" name="maxOccupancy" type="number" value={roomForm.maxOccupancy} onChange={handleRoomInputChange} />
+                      <Input label="Total Rooms" name="totalRooms" type="number" value={roomForm.totalRooms} onChange={handleRoomInputChange} />
+                      <Input label="Available Rooms" name="availableRooms" type="number" value={roomForm.availableRooms} onChange={handleRoomInputChange} />
+                      <Input label="Price per Bed" name="pricePerBed" type="number" value={roomForm.pricePerBed} onChange={handleRoomInputChange} />
+                      <Input label="Price per Room" name="pricePerRoom" type="number" value={roomForm.pricePerRoom} onChange={handleRoomInputChange} />
+                      <label>Gender Preference
+                        <select name="genderPreference" value={roomForm.genderPreference} onChange={handleRoomInputChange}>
+                          <option value="any">Any</option>
+                          <option value="male">Male</option>
+                          <option value="female">Female</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div className="modal-actions">
+                      <Button variant="secondary" onClick={() => setRoomsModalOpen(false)}>Close</Button>
+                      <Button type="submit" variant="primary" isLoading={roomsLoading}>Add Room</Button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
 
       {/* Edit Property Modal */}
       <AnimatePresence>

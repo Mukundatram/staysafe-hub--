@@ -37,6 +37,7 @@ const BookingPage = () => {
     mealsSelected: false,
     planType: 'room', // room, room-mess, mess
   });
+  const [selectedRoomId, setSelectedRoomId] = useState(null);
 
   useEffect(() => {
     fetchProperty();
@@ -60,11 +61,13 @@ const BookingPage = () => {
   const handleSubmit = async () => {
     try {
       setSubmitting(true);
-      await bookingService.create(propertyId, {
+      const payload = {
         startDate: formData.startDate,
         endDate: formData.endDate,
         mealsSelected: formData.mealsSelected,
-      });
+      };
+      if (selectedRoomId) payload.roomId = selectedRoomId;
+      await bookingService.create(propertyId, payload);
       setBookingComplete(true);
       toast.success('Booking request submitted successfully!');
     } catch (err) {
@@ -76,7 +79,14 @@ const BookingPage = () => {
   };
 
   const calculateTotal = () => {
-    const rent = property?.rent || 0;
+    let rent = property?.rent || 0;
+    // If a room is selected, use room price where available
+    if (selectedRoomId && property?.rooms) {
+      const room = property.rooms.find(r => r._id === selectedRoomId || r._id === String(selectedRoomId));
+      if (room) {
+        rent = (room.pricePerRoom && room.pricePerRoom > 0) ? room.pricePerRoom : (room.pricePerBed || rent);
+      }
+    }
     const messCharges = formData.mealsSelected ? 3000 : 0;
     const securityDeposit = rent;
     return {
@@ -251,6 +261,19 @@ const BookingPage = () => {
                 <p>When would you like to move in?</p>
 
                 <div className="dates-form">
+                  {property?.rooms && property.rooms.length > 0 && (
+                    <div className="form-group">
+                      <label>Choose Room</label>
+                      <select value={selectedRoomId || ''} onChange={e => setSelectedRoomId(e.target.value)}>
+                        <option value="">-- Select room --</option>
+                        {property.rooms.map(room => (
+                          <option key={room._id} value={room._id} disabled={room.availableRooms <= 0}>
+                            {room.roomName || room.roomNumber || room.roomType} - Available: {room.availableRooms} - Max Occupancy: {room.maxOccupancy}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div className="form-group">
                     <Input
                       label="Move-in Date"

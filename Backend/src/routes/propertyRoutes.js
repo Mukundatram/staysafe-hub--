@@ -1,5 +1,6 @@
 const express = require("express");
 const Property = require("../models/Property");
+const Room = require('../models/Room');
 const router = express.Router();
 
 /* ================= GET ALL PROPERTIES WITH ADVANCED FILTERING ================= */
@@ -156,7 +157,11 @@ router.get("/:id", async (req, res) => {
     if (!property) {
       return res.status(404).json({ message: "Property not found" });
     }
-    res.json(property);
+    // Attach rooms if any (backwards compatible)
+    const rooms = await Room.find({ property: property._id });
+    const propObj = property.toObject();
+    propObj.rooms = rooms;
+    res.json(propObj);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });

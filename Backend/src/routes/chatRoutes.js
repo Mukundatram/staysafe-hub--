@@ -54,6 +54,7 @@ router.get('/conversations', protect, async (req, res) => {
         return {
           property,
           otherUser,
+          otherUserId: msg._id.otherUser,
           lastMessage: msg.lastMessage,
           lastMessageTime: msg.lastMessageTime,
           unreadCount: msg.unreadCount
@@ -161,3 +162,26 @@ router.get('/unread-count', protect, async (req, res) => {
 });
 
 module.exports = router;
+
+// DELETE conversation messages for a property + other user (remove stale conversation)
+router.delete('/:propertyId/:userId', protect, async (req, res) => {
+  try {
+    const { propertyId, userId } = req.params;
+    const currentUserId = req.user._id;
+
+    // Remove all messages between currentUserId and userId for the property
+    const result = await Message.deleteMany({
+      property: propertyId,
+      $or: [
+        { sender: currentUserId, receiver: userId },
+        { sender: userId, receiver: currentUserId }
+      ]
+    });
+
+    return res.json({ message: 'Conversation removed', deletedCount: result.deletedCount });
+  } catch (err) {
+    console.error('Error deleting conversation:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+

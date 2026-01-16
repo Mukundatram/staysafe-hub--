@@ -18,7 +18,26 @@ const ChatList = ({ onSelectChat }) => {
   const fetchConversations = React.useCallback(async () => {
     try {
       const data = await chatService.getConversations();
-      setConversations(data);
+
+      // Automatically remove stale conversations where otherUser record is missing
+      const filtered = [];
+      await Promise.all(data.map(async (conv) => {
+        if (!conv.otherUser) {
+          try {
+            const otherUserId = conv.otherUserId;
+            if (conv.property?._id && otherUserId) {
+              await chatService.deleteConversation(conv.property._id, otherUserId);
+              console.log('Removed stale conversation for property', conv.property._id, 'user', otherUserId);
+            }
+          } catch (delErr) {
+            console.error('Failed to delete stale conversation:', delErr);
+          }
+        } else {
+          filtered.push(conv);
+        }
+      }));
+
+      setConversations(filtered);
     } catch (err) {
       console.error('Failed to fetch conversations:', err);
       if (loading) {

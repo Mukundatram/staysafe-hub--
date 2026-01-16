@@ -100,6 +100,12 @@ export const chatService = {
     return response.data;
   },
 
+  // Delete conversation messages for a property + other user
+  deleteConversation: async (propertyId, otherUserId) => {
+    const response = await api.delete(`/chat/${propertyId}/${otherUserId}`);
+    return response.data;
+  },
+
   // Send a message
   sendMessage: async (receiverId, propertyId, content) => {
     const response = await api.post('/chat/send', { receiverId, propertyId, content });
@@ -195,6 +201,30 @@ export const ownerService = {
   // Delete property
   deleteProperty: async (propertyId) => {
     const response = await api.delete(`/owner/property/${propertyId}`);
+    return response.data;
+  },
+
+  // Add a room to a property
+  addRoom: async (propertyId, roomData) => {
+    const response = await api.post(`/owner/property/${propertyId}/rooms`, roomData);
+    return response.data;
+  },
+
+  // List rooms for a property
+  getRooms: async (propertyId) => {
+    const response = await api.get(`/owner/property/${propertyId}/rooms`);
+    return response.data;
+  },
+  
+  // Update a room
+  updateRoom: async (propertyId, roomId, roomData) => {
+    const response = await api.patch(`/owner/property/${propertyId}/rooms/${roomId}`, roomData);
+    return response.data;
+  },
+
+  // Delete a room
+  deleteRoom: async (propertyId, roomId) => {
+    const response = await api.delete(`/owner/property/${propertyId}/rooms/${roomId}`);
     return response.data;
   },
 };

@@ -4,6 +4,8 @@ const propertySchema = new mongoose.Schema({
   owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   title: { type: String, required: true },
   description: String,
+  // New property type to support single / hostel / pg
+  propertyType: { type: String, enum: ['single_property', 'hostel', 'pg'], default: 'single_property' },
   rent: { type: Number, required: true },
   amenities: [String],
   meals: { type: [String], default: [] },

@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+// In development, point directly to backend to avoid CRA proxy edge-cases.
+const devBase = 'http://localhost:4000/api';
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: (process.env.NODE_ENV === 'development' ? devBase : '/api'),
   headers: {
     'Content-Type': 'application/json',
   },

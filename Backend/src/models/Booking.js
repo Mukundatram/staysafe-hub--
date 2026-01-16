@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 const bookingSchema = new mongoose.Schema({
   student: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   property: { type: mongoose.Schema.Types.ObjectId, ref: 'Property', required: true },
+  // Optional: reference to a Room when booking a specific room/bed
+  room: { type: mongoose.Schema.Types.ObjectId, ref: 'Room', required: false },
   mealsSelected: { type: Boolean, default: false },
   startDate: { type: Date, required: true },
   endDate: { type: Date, required: true },

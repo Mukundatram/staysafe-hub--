@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
+    "seed-rooms": "node scripts/seed-rooms.js",
+    "migrate-default-rooms": "node scripts/migrate-default-rooms.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -21,7 +23,8 @@
     "memory-cache": "^0.2.0",
     "mongoose": "^8.4.1",
     "multer": "^2.0.2",
-    "nodemailer": "^7.0.12"
+    "nodemailer": "^7.0.12",
+    "socket.io": "^4.8.3"
   },
   "devDependencies": {
     "nodemon": "^3.1.4"

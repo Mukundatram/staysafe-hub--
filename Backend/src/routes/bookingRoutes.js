@@ -73,10 +73,21 @@ router.post(
       }
 
       // 3️⃣ Property check
-      const property = await Property.findById(property_id).populate('owner', 'name email');
-      if (!property || !property.isAvailable) {
-        return res.status(400).json({ message: "Property not available" });
-      }
+          const property = await Property.findById(property_id).populate('owner', 'name email');
+          if (!property) {
+            return res.status(400).json({ message: "Property not found" });
+          }
+
+          // If property-level availability is false and there are no rooms, block
+          if (!property.isAvailable) {
+            // if property has rooms, we'll allow booking to proceed and rely on room availability checks
+            // but for backward compatibility, if no rooms exist, block
+            const Room = require('../models/Room');
+            const roomsCount = await Room.countDocuments({ property: property._id });
+            if (roomsCount === 0) {
+              return res.status(400).json({ message: "Property not available" });
+            }
+          }
 
       // 4️⃣ Prevent duplicate booking
       const existingBooking = await Booking.findOne({
@@ -91,26 +102,62 @@ router.post(
         });
       }
 
-      // 5️⃣ Create booking
-      const booking = await Booking.create({
-        student: req.user._id,
-        property: property_id,
-        mealsSelected,
-        startDate,
-        endDate,
-        status: "Pending",
-      });
+      // 5️⃣ Create booking (optionally for a specific room)
+      const roomId = req.body.roomId;
+      if (roomId) {
+        const Room = require('../models/Room');
+        if (!mongoose.Types.ObjectId.isValid(roomId)) {
+          return res.status(400).json({ message: 'Invalid room ID' });
+        }
+        const room = await Room.findOne({ _id: roomId, property: property._id });
+        if (!room) return res.status(400).json({ message: 'Room not found for this property' });
+        // allow Pending bookings; availability enforced on confirm to avoid race on pending
+        const booking = await Booking.create({
+          student: req.user._id,
+          property: property_id,
+          room: room._id,
+          mealsSelected,
+          startDate,
+          endDate,
+          status: 'Pending'
+        });
+
+        // notify owner as below
+        var createdBooking = booking;
+      } else {
+        const booking = await Booking.create({
+          student: req.user._id,
+          property: property_id,
+          mealsSelected,
+          startDate,
+          endDate,
+          status: "Pending",
+        });
+        var createdBooking = booking;
+      }
 
       // 6️⃣ Send notification to property owner
       try {
         const student = await User.findById(req.user._id);
         if (property.owner) {
-          await notificationService.bookingRequested(
-            booking,
+          // send notification (non-blocking)
+          notificationService.bookingRequested(
+            createdBooking,
             property,
             student,
             property.owner
-          );
+          ).catch(err => console.error('Notification error (bookingRequested):', err));
+
+          // Emit socket event to owner room
+          try {
+            const io = req.app.get('io');
+            if (io) {
+              const ownerId = property.owner._id ? property.owner._id.toString() : property.owner.toString();
+              io.to(`user_${ownerId}`).emit('booking:requested', { booking: createdBooking, property, student });
+            }
+          } catch (e) {
+            console.error('Socket emit error (bookingRequested):', e);
+          }
         }
       } catch (notifError) {
         console.error("Notification error:", notifError);
@@ -119,7 +166,7 @@ router.post(
 
       res.status(201).json({
         message: "Booking created successfully",
-        booking,
+        booking: createdBooking,
       });
     } catch (error) {
       console.error("Booking creation error:", error);
@@ -146,39 +193,62 @@ router.patch(
         return res.status(400).json({ message: "Invalid status" });
       }
 
-      const booking = await Booking.findByIdAndUpdate(
-        booking_id,
-        { status },
-        { new: true }
-      )
-        .populate("student", "email name")
-        .populate({
-          path: "property",
-          select: "title location owner",
-          populate: { path: "owner", select: "name email" }
-        });
+      // Find booking to handle room availability transitions safely
+      const booking = await Booking.findById(booking_id)
+        .populate('student', 'email name')
+        .populate({ path: 'property', select: 'title location owner' });
 
-      if (!booking) {
-        return res.status(404).json({ message: "Booking not found" });
+      if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+      const prevStatus = booking.status;
+      booking.status = status;
+
+      // Handle room availability transitions if booking linked to a Room
+      if (booking.room) {
+        const Room = require('../models/Room');
+        const room = await Room.findById(booking.room);
+        if (!room) {
+          return res.status(400).json({ message: 'Linked room not found' });
+        }
+
+        if (status === 'Confirmed' && prevStatus !== 'Confirmed') {
+          if (room.availableRooms <= 0) {
+            return res.status(400).json({ message: 'No availability for this room' });
+          }
+          room.availableRooms = Math.max(0, room.availableRooms - 1);
+          await room.save();
+        }
+
+        if (prevStatus === 'Confirmed' && status !== 'Confirmed') {
+          room.availableRooms = Math.min(room.totalRooms, room.availableRooms + 1);
+          await room.save();
+        }
+
+        // Update property.isAvailable based on rooms
+        const availableRoom = await require('../models/Room').findOne({ property: booking.property._id, availableRooms: { $gt: 0 } });
+        await Property.findByIdAndUpdate(booking.property._id, { isAvailable: !!availableRoom });
+      } else {
+        // legacy property-level behavior
+        if (status === 'Confirmed') {
+          await Property.findByIdAndUpdate(booking.property._id, { isAvailable: false });
+        }
+        if (prevStatus === 'Confirmed' && status !== 'Confirmed') {
+          await Property.findByIdAndUpdate(booking.property._id, { isAvailable: true });
+        }
       }
 
-      // Auto update property availability
-      if (status === "Confirmed") {
-        await Property.findByIdAndUpdate(booking.property._id, {
-          isAvailable: false,
-        });
-      }
+      await booking.save();
 
       // Send notification to student
       try {
-        if (status === "Confirmed") {
+        if (status === 'Confirmed') {
           await notificationService.bookingApproved(
             booking,
             booking.property,
             booking.student,
             booking.property.owner
           );
-        } else if (status === "Rejected") {
+        } else if (status === 'Rejected') {
           await notificationService.bookingRejected(
             booking,
             booking.property,
@@ -187,13 +257,10 @@ router.patch(
           );
         }
       } catch (notifError) {
-        console.error("Notification error:", notifError);
+        console.error('Notification error:', notifError);
       }
 
-      res.json({
-        message: `Booking ${status}`,
-        booking,
-      });
+      res.json({ message: `Booking ${status}`, booking });
     } catch (error) {
       console.error("Admin booking update error:", error);
       res.status(500).json({ message: "Server error" });
@@ -271,14 +338,54 @@ router.patch(
           return res.status(403).json({ message: 'You are not authorized to manage this booking' });
         }
 
+        // Handle status transitions with room availability
+        const prevStatus = booking.status;
         booking.status = status;
+
+        if (booking.room) {
+          const Room = require('../models/Room');
+          const room = await Room.findById(booking.room);
+          if (!room) return res.status(400).json({ message: 'Linked room not found' });
+
+          if (status === 'Confirmed' && prevStatus !== 'Confirmed') {
+            if (room.availableRooms <= 0) {
+              return res.status(400).json({ message: 'No availability for this room' });
+            }
+            room.availableRooms = Math.max(0, room.availableRooms - 1);
+            await room.save();
+          }
+
+          if (prevStatus === 'Confirmed' && status !== 'Confirmed') {
+            room.availableRooms = Math.min(room.totalRooms, room.availableRooms + 1);
+            await room.save();
+          }
+
+          const availableRoom = await require('../models/Room').findOne({ property: booking.property._id, availableRooms: { $gt: 0 } });
+          await Property.findByIdAndUpdate(booking.property._id, { isAvailable: !!availableRoom });
+        } else {
+          if (status === 'Confirmed') {
+            await Property.findByIdAndUpdate(booking.property._id, { isAvailable: false });
+          }
+          if (prevStatus === 'Confirmed' && status !== 'Confirmed') {
+            await Property.findByIdAndUpdate(booking.property._id, { isAvailable: true });
+          }
+        }
+
         await booking.save();
 
         console.log('[OwnerBookingUpdate] updated booking:', booking._id.toString(), 'newStatus:', booking.status);
 
-        // Auto update property availability
-        if (status === 'Confirmed') {
-          await Property.findByIdAndUpdate(booking.property._id, { isAvailable: false });
+        // Emit socket event to relevant users (student + owner)
+        try {
+          const io = req.app.get('io');
+          if (io) {
+            const ownerId = booking.property.owner && booking.property.owner._id ? booking.property.owner._id.toString() : booking.property.owner ? booking.property.owner.toString() : null;
+            const studentId = booking.student && booking.student._id ? booking.student._id.toString() : booking.student ? booking.student.toString() : null;
+            if (ownerId) io.to(`user_${ownerId}`).emit('booking:updated', { booking });
+            if (studentId) io.to(`user_${studentId}`).emit('booking:updated', { booking });
+          }
+        } catch (e) {
+          console.error('Socket emit error (bookingUpdated):', e);
         }
 
         // Send notification to student (fire-and-forget to avoid blocking request)
@@ -377,9 +484,20 @@ router.patch(
       await booking.save();
 
       // Mark property as available again
-      await Property.findByIdAndUpdate(booking.property._id, {
-        isAvailable: true
-      });
+      if (booking.room) {
+        const Room = require('../models/Room');
+        const room = await Room.findById(booking.room);
+        if (room) {
+          room.availableRooms = Math.min(room.totalRooms, room.availableRooms + 1);
+          await room.save();
+        }
+        const availableRoom = await require('../models/Room').findOne({ property: booking.property._id, availableRooms: { $gt: 0 } });
+        await Property.findByIdAndUpdate(booking.property._id, { isAvailable: !!availableRoom });
+      } else {
+        await Property.findByIdAndUpdate(booking.property._id, {
+          isAvailable: true
+        });
+      }
 
       // Send notification to owner
       try {
