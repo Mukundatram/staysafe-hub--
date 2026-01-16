@@ -2598,6 +2598,109 @@ const OwnerDashboard = () => {
           color: var(--text-secondary);
         }
 
+        /* Bookings Grid */
+        .bookings-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+          gap: 1rem;
+        }
+
+        .booking-card {
+          background: var(--bg-secondary);
+          border: 1px solid var(--border-light);
+          border-radius: var(--radius-xl);
+          padding: 1.25rem;
+          transition: all var(--transition-normal);
+        }
+
+        .booking-card:hover {
+          border-color: var(--accent-primary);
+          box-shadow: var(--shadow-md);
+        }
+
+        .booking-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 1rem;
+        }
+
+        .booking-id {
+          font-size: 0.75rem;
+          color: var(--text-tertiary);
+          font-family: monospace;
+        }
+
+        .booking-student {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          margin-bottom: 1rem;
+          padding-bottom: 1rem;
+          border-bottom: 1px solid var(--border-light);
+        }
+
+        .user-avatar {
+          width: 48px;
+          height: 48px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: var(--accent-gradient);
+          border-radius: var(--radius-full);
+          color: white;
+          font-weight: 600;
+          font-size: 1.125rem;
+        }
+
+        .user-info {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .user-name {
+          font-weight: 600;
+          color: var(--text-primary);
+        }
+
+        .user-email {
+          font-size: 0.75rem;
+          color: var(--text-tertiary);
+        }
+
+        .booking-property {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          font-weight: 500;
+          color: var(--text-primary);
+          margin-bottom: 0.5rem;
+        }
+
+        .booking-property svg {
+          color: var(--accent-primary);
+        }
+
+        .booking-dates {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          font-size: 0.875rem;
+          color: var(--text-secondary);
+          margin-bottom: 1rem;
+        }
+
+        .booking-actions {
+          display: flex;
+          gap: 0.5rem;
+          padding-top: 1rem;
+          border-top: 1px solid var(--border-light);
+        }
+
+        .booking-actions button {
+          flex: 1;
+        }
+
         .header-actions {
           display: flex;
           gap: 0.75rem;
