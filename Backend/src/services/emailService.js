@@ -213,6 +213,107 @@ const emailTemplates = {
       </div>
     `
   })
+
+  ,
+
+  college_verification: (data) => ({
+    subject: `Verify your college email for StaySafe Hub`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px 10px 0 0;">
+          <h1 style="color: white; margin: 0; text-align: center;">🏠 StaySafe Hub</h1>
+        </div>
+        <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
+          <h2 style="color: #333;">Verify your college email</h2>
+          <p style="color: #666; font-size: 16px;">Hello <strong>${data.userName}</strong>,</p>
+          <p style="color: #666; font-size: 16px;">Click the button below to verify your college/university email address. We will not store your email beyond the verification record.</p>
+          <div style="text-align: center; margin-top: 20px;">
+            <a href="${data.verifyUrl}" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 25px; font-weight: bold;">Verify Email</a>
+          </div>
+          <p style="color: #999; font-size: 12px; margin-top: 20px;">If the button doesn't work, copy and paste this link into your browser: ${data.verifyUrl}</p>
+        </div>
+      </div>
+    `
+  }),
+
+  // Mess Subscription Templates
+  mess_subscription_request: (data) => ({
+    subject: `New Mess Subscription Request - ${data.messName}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px 10px 0 0;">
+          <h1 style="color: white; margin: 0; text-align: center;">🏠 StaySafe Hub</h1>
+        </div>
+        <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
+          <h2 style="color: #333;">New Mess Subscription! 🍽️</h2>
+          <p style="color: #666; font-size: 16px;">Hello <strong>${data.ownerName}</strong>,</p>
+          <p style="color: #666; font-size: 16px;"><strong>${data.studentName}</strong> has requested a subscription for <strong>${data.messName}</strong>.</p>
+          <div style="background: white; padding: 20px; border-radius: 8px; border-left: 4px solid #667eea; margin: 20px 0;">
+            <p style="margin: 5px 0; color: #666;">📝 Plan: ${data.plan}</p>
+          </div>
+          <p style="color: #666; font-size: 16px;">Please log in to your dashboard to approve or reject this request.</p>
+          <div style="text-align: center; margin-top: 30px;">
+            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/mess/owner" 
+               style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 25px; font-weight: bold;">
+              Manage Subscriptions
+            </a>
+          </div>
+        </div>
+      </div>
+    `
+  }),
+
+  mess_subscription_approved: (data) => ({
+    subject: `Mess Subscription Approved! - ${data.messName}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 20px; border-radius: 10px 10px 0 0;">
+          <h1 style="color: white; margin: 0; text-align: center;">🏠 StaySafe Hub</h1>
+        </div>
+        <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
+          <h2 style="color: #11998e;">Subscription Approved! 🎉</h2>
+          <p style="color: #666; font-size: 16px;">Hello <strong>${data.studentName}</strong>,</p>
+          <p style="color: #666; font-size: 16px;">Your subscription for <strong>${data.messName}</strong> has been approved by <strong>${data.ownerName}</strong>.</p>
+          <div style="background: white; padding: 20px; border-radius: 8px; border-left: 4px solid #11998e; margin: 20px 0;">
+            <p style="margin: 5px 0; color: #666;">📝 Plan: ${data.plan}</p>
+          </div>
+          <p style="color: #666; font-size: 16px;">You can now view your active subscription and chat with the owner.</p>
+          <div style="text-align: center; margin-top: 30px;">
+            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard" 
+               style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 25px; font-weight: bold;">
+              View Dashboard
+            </a>
+          </div>
+        </div>
+      </div>
+    `
+  }),
+
+  mess_subscription_rejected: (data) => ({
+    subject: `Mess Subscription Update - ${data.messName}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); padding: 20px; border-radius: 10px 10px 0 0;">
+          <h1 style="color: white; margin: 0; text-align: center;">🏠 StaySafe Hub</h1>
+        </div>
+        <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
+          <h2 style="color: #e74c3c;">Subscription Not Approved</h2>
+          <p style="color: #666; font-size: 16px;">Hello <strong>${data.studentName}</strong>,</p>
+          <p style="color: #666; font-size: 16px;">Your subscription request for <strong>${data.messName}</strong> was not approved.</p>
+          ${data.reason ? `
+          <div style="background: white; padding: 20px; border-radius: 8px; border-left: 4px solid #e74c3c; margin: 20px 0;">
+            <p style="margin: 5px 0; color: #666;">📝 Reason: ${data.reason}</p>
+          </div>` : ''}
+          <div style="text-align: center; margin-top: 30px;">
+            <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/mess" 
+               style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 25px; font-weight: bold;">
+              Find Other Messes
+            </a>
+          </div>
+        </div>
+      </div>
+    `
+  })
 };
 
 // Send email function

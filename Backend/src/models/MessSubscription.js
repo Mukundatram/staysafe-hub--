@@ -39,7 +39,7 @@ const messSubscriptionSchema = new mongoose.Schema({
   // Status
   status: {
     type: String,
-    enum: ['Active', 'Expired', 'Cancelled', 'Pending'],
+    enum: ['Active', 'Expired', 'Cancelled', 'Pending', 'Rejected'],
     default: 'Pending'
   },
   // Payment status
@@ -64,6 +64,20 @@ const messSubscriptionSchema = new mongoose.Schema({
   },
   // Special instructions
   specialInstructions: {
+    type: String
+  },
+  // Approval/Rejection tracking
+  approvedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  approvedAt: Date,
+  rejectedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  rejectedAt: Date,
+  rejectionReason: {
     type: String
   }
 }, {

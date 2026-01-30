@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const passport = require('passport');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
@@ -18,11 +19,16 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const wishlistRoutes = require('./routes/wishlistRoutes');
 const documentRoutes = require('./routes/documentRoutes');
+const aadhaarRoutes = require('./routes/aadhaarRoutes');
+const verificationRoutes = require('./routes/verificationRoutes');
 const agreementRoutes = require('./routes/agreementRoutes');
+const phoneRoutes = require('./routes/phoneRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const chatbotRoutes = require('./routes/chatbotRoutes');
 const aiRoutes = require('./routes/aiRoutes');
 const messRoutes = require('./routes/messRoutes');
+const messAdminRoutes = require('./routes/messAdminRoutes');
+const userRoutes = require('./routes/userRoutes');
 
 const app = express();
 
@@ -32,8 +38,14 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+app.use(passport.initialize());
 
 // ✅ SERVE STATIC FILES (for uploaded images)
+// Prevent direct public access to sensitive document uploads. Document files under /uploads/documents
+// must be served via authenticated endpoints.
+app.use('/uploads/documents', (req, res, next) => {
+  return res.status(403).send('Forbidden');
+});
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // ✅ ROUTES
@@ -47,11 +59,16 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/aadhaar', aadhaarRoutes);
+app.use('/api/verification', verificationRoutes);
+app.use('/api/phone', phoneRoutes);
 app.use('/api/agreements', agreementRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/mess', messRoutes);
+app.use('/api/admin', messAdminRoutes);
+app.use('/api/user', userRoutes);
 
 app.use('/api/properties', propertyRoutes);
 
@@ -113,3 +130,5 @@ mongoose.connect(process.env.MONGO_URI)
     );
   })
   .catch(err => console.error(err));
+
+// Force restart for debugging

@@ -173,8 +173,8 @@ const notificationService = {
 
   // When a new message is received
   async newMessage(sender, recipient, property, messageContent) {
-    const messagePreview = messageContent.length > 100 
-      ? messageContent.substring(0, 100) + '...' 
+    const messagePreview = messageContent.length > 100
+      ? messageContent.substring(0, 100) + '...'
       : messageContent;
 
     return createNotification({
@@ -201,14 +201,14 @@ const notificationService = {
   // Get user's notifications
   async getUserNotifications(userId, page = 1, limit = 20) {
     const skip = (page - 1) * limit;
-    
+
     const notifications = await Notification.find({ user: userId })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
-    
+
     const total = await Notification.countDocuments({ user: userId });
-    
+
     return {
       notifications,
       pagination: {
@@ -247,6 +247,107 @@ const notificationService = {
     return await Notification.findOneAndDelete({
       _id: notificationId,
       user: userId
+    });
+  }
+
+  ,
+
+  // Notify user about document verification status
+  async documentStatusChanged(user, document, status) {
+    const action = status === 'verified' ? 'verified' : (status === 'rejected' ? 'rejected' : status);
+    const title = status === 'verified' ? 'Document Verified' : 'Document Verification Update';
+    const message = status === 'verified'
+      ? `Your ${document.originalName || 'document'} has been verified.`
+      : `Your ${document.originalName || 'document'} was not verified.`;
+
+    try {
+      const emailTo = user?.email;
+      return await createNotification({
+        userId: user._id,
+        type: `document_${action}`,
+        title,
+        message,
+        link: '/verification',
+        metadata: { documentId: document._id, documentType: document.documentType },
+        sendEmailNotification: Boolean(emailTo),
+        emailTo,
+        emailData: { userName: user.name, documentName: document.originalName }
+      });
+    } catch (e) {
+      console.error('Failed to create document status notification', e);
+      throw e;
+    }
+  },
+
+  // When a student requests mess subscription
+  async messSubscriptionRequested(subscription, mess, student, owner) {
+    return createNotification({
+      userId: owner._id,
+      type: 'mess_subscription_request',
+      title: 'New Mess Subscription Request',
+      message: `${student.name} has requested to subscribe to "${mess.name}"`,
+      link: '/owner/dashboard',
+      metadata: {
+        messId: mess._id,
+        subscriptionId: subscription._id,
+        senderId: student._id
+      },
+      sendEmailNotification: true,
+      emailTo: owner.email,
+      emailData: {
+        ownerName: owner.name,
+        studentName: student.name,
+        messName: mess.name,
+        plan: subscription.plan
+      }
+    });
+  },
+
+  // When owner approves mess subscription
+  async messSubscriptionApproved(subscription, mess, student, owner) {
+    return createNotification({
+      userId: student._id,
+      type: 'mess_subscription_approved',
+      title: 'Mess Subscription Approved! 🎉',
+      message: `Your subscription to "${mess.name}" has been approved`,
+      link: '/dashboard',
+      metadata: {
+        messId: mess._id,
+        subscriptionId: subscription._id,
+        senderId: owner._id
+      },
+      sendEmailNotification: true,
+      emailTo: student.email,
+      emailData: {
+        studentName: student.name,
+        ownerName: owner.name,
+        messName: mess.name,
+        plan: subscription.plan
+      }
+    });
+  },
+
+  // When owner rejects mess subscription
+  async messSubscriptionRejected(subscription, mess, student, owner, reason) {
+    return createNotification({
+      userId: student._id,
+      type: 'mess_subscription_rejected',
+      title: 'Mess Subscription Not Approved',
+      message: `Your subscription to "${mess.name}" was not approved${reason ? ': ' + reason : ''}`,
+      link: '/mess',
+      metadata: {
+        messId: mess._id,
+        subscriptionId: subscription._id,
+        senderId: owner._id,
+        reason
+      },
+      sendEmailNotification: true,
+      emailTo: student.email,
+      emailData: {
+        studentName: student.name,
+        messName: mess.name,
+        reason
+      }
     });
   }
 };

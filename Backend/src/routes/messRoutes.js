@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const Mess = require('../models/Mess');
 const MessSubscription = require('../models/MessSubscription');
+const MessSubscriptionAudit = require('../models/MessSubscriptionAudit');
+const User = require('../models/User');
+const notificationService = require('../services/notificationService');
 const { protect, authorize } = require('../middleware/authMiddleware');
 const { handleMessImageUpload } = require('../middleware/uploadMiddleware');
 
@@ -120,6 +123,118 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/mess/subscriptions/my - Get user's subscriptions
+router.get('/subscriptions/my', protect, async (req, res) => {
+  try {
+    console.log('GET /subscriptions/my hit. User:', req.user._id);
+    const subscriptions = await MessSubscription.find({ user: req.user._id })
+      .populate({
+        path: 'mess',
+        populate: {
+          path: 'owner',
+          select: 'name email phone'
+        }
+      })
+      .sort({ createdAt: -1 });
+    console.log('Found subscriptions:', subscriptions.length);
+    res.json(subscriptions);
+  } catch (error) {
+    console.error('Error fetching subscriptions:', error);
+    res.status(500).json({ error: 'Failed to fetch subscriptions' });
+  }
+});
+
+// ==================== OWNER ROUTES (MUST BE BEFORE /:id) ====================
+
+// GET /api/mess/owner/my-services - Get owner's mess services with subscriber count
+router.get('/owner/my-services', protect, authorize('owner'), async (req, res) => {
+  try {
+    const messServices = await Mess.find({ owner: req.user._id })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Get subscriber count for each mess service
+    const messIds = messServices.map(m => m._id);
+    const subscriberCounts = await MessSubscription.aggregate([
+      {
+        $match: {
+          mess: { $in: messIds },
+          status: { $in: ['Active', 'Pending'] }
+        }
+      },
+      {
+        $group: {
+          _id: '$mess',
+          total: { $sum: 1 },
+          active: { $sum: { $cond: [{ $eq: ['$status', 'Active'] }, 1, 0] } },
+          pending: { $sum: { $cond: [{ $eq: ['$status', 'Pending'] }, 1, 0] } }
+        }
+      }
+    ]);
+
+    // Create a map for quick lookup
+    const countMap = {};
+    subscriberCounts.forEach(c => {
+      countMap[c._id.toString()] = c;
+    });
+
+    // Add subscriber count to each mess service
+    const messWithCounts = messServices.map(mess => ({
+      ...mess,
+      subscribers: countMap[mess._id.toString()]?.total || 0,
+      activeSubscribers: countMap[mess._id.toString()]?.active || 0,
+      pendingSubscribers: countMap[mess._id.toString()]?.pending || 0
+    }));
+
+    res.json(messWithCounts);
+  } catch (error) {
+    console.error('Error fetching owner mess services:', error);
+    res.status(500).json({ error: 'Failed to fetch mess services' });
+  }
+});
+
+// GET /api/mess/owner/subscriptions - Get all subscription requests for owner's mess services
+router.get('/owner/subscriptions', protect, authorize('owner'), async (req, res) => {
+  try {
+    const { status, page = 1, limit = 20 } = req.query;
+
+    // Find all mess services owned by this user
+    const messServices = await Mess.find({ owner: req.user._id }).select('_id');
+    const messIds = messServices.map(m => m._id);
+
+    // Build filter
+    const filter = { mess: { $in: messIds } };
+    if (status) {
+      filter.status = status;
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const [subscriptions, total] = await Promise.all([
+      MessSubscription.find(filter)
+        .populate('user', 'name email phone')
+        .populate('mess', 'name location')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit)),
+      MessSubscription.countDocuments(filter)
+    ]);
+
+    res.json({
+      subscriptions,
+      pagination: {
+        total,
+        page: parseInt(page),
+        pages: Math.ceil(total / parseInt(limit)),
+        limit: parseInt(limit)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching owner subscriptions:', error);
+    res.status(500).json({ error: 'Failed to fetch subscriptions' });
+  }
+});
+
 // GET /api/mess/:id - Get single mess service details
 router.get('/:id', async (req, res) => {
   try {
@@ -208,7 +323,7 @@ router.put('/:id', protect, authorize('owner', 'admin'), async (req, res) => {
     }
 
     const updates = req.body;
-    
+
     // Parse JSON strings if needed
     if (typeof updates.mealTypes === 'string') updates.mealTypes = JSON.parse(updates.mealTypes);
     if (typeof updates.cuisineType === 'string') updates.cuisineType = JSON.parse(updates.cuisineType);
@@ -230,7 +345,7 @@ router.put('/:id', protect, authorize('owner', 'admin'), async (req, res) => {
   }
 });
 
-// DELETE /api/mess/:id - Delete mess service (Owner only)
+// DELETE /api/mess/:id - Soft delete mess service (Owner only)
 router.delete('/:id', protect, authorize('owner', 'admin'), async (req, res) => {
   try {
     const mess = await Mess.findById(req.params.id);
@@ -244,25 +359,14 @@ router.delete('/:id', protect, authorize('owner', 'admin'), async (req, res) => 
       return res.status(403).json({ error: 'Not authorized to delete this mess service' });
     }
 
-    await mess.deleteOne();
+    // Soft delete - set isActive to false instead of actually deleting
+    mess.isActive = false;
+    await mess.save();
 
-    res.json({ message: 'Mess service deleted successfully' });
+    res.json({ message: 'Mess service disabled successfully' });
   } catch (error) {
-    console.error('Error deleting mess service:', error);
-    res.status(500).json({ error: 'Failed to delete mess service' });
-  }
-});
-
-// GET /api/mess/owner/my-services - Get owner's mess services
-router.get('/owner/my-services', protect, authorize('owner'), async (req, res) => {
-  try {
-    const messServices = await Mess.find({ owner: req.user._id })
-      .sort({ createdAt: -1 });
-
-    res.json(messServices);
-  } catch (error) {
-    console.error('Error fetching owner mess services:', error);
-    res.status(500).json({ error: 'Failed to fetch mess services' });
+    console.error('Error disabling mess service:', error);
+    res.status(500).json({ error: 'Failed to disable mess service' });
   }
 });
 
@@ -279,21 +383,22 @@ router.post('/:id/subscribe', protect, async (req, res) => {
       return res.status(404).json({ error: 'Mess service not found' });
     }
 
-    // Check if already subscribed
+    // Check if user has ANY active or pending subscription across ALL messes
     const existingSubscription = await MessSubscription.findOne({
       user: req.user._id,
-      mess: req.params.id,
-      status: 'Active'
+      status: { $in: ['Active', 'Pending'] }
     });
 
     if (existingSubscription) {
-      return res.status(400).json({ error: 'You already have an active subscription to this mess' });
+      return res.status(400).json({
+        error: 'You already have an active or pending mess subscription. Please cancel it before subscribing to a new mess.'
+      });
     }
 
     // Calculate amount based on plan
     let amount = 0;
     const pricing = mess.pricing;
-    
+
     switch (plan) {
       case 'monthly-all':
         amount = pricing.monthly?.allMeals || 0;
@@ -383,19 +488,7 @@ router.post('/:id/subscribe', protect, async (req, res) => {
   }
 });
 
-// GET /api/mess/subscriptions/my - Get user's subscriptions
-router.get('/subscriptions/my', protect, async (req, res) => {
-  try {
-    const subscriptions = await MessSubscription.find({ user: req.user._id })
-      .populate('mess', 'name location images pricing timings')
-      .sort({ createdAt: -1 });
 
-    res.json(subscriptions);
-  } catch (error) {
-    console.error('Error fetching subscriptions:', error);
-    res.status(500).json({ error: 'Failed to fetch subscriptions' });
-  }
-});
 
 // PATCH /api/mess/subscriptions/:id/cancel - Cancel subscription
 router.patch('/subscriptions/:id/cancel', protect, async (req, res) => {
@@ -455,7 +548,7 @@ router.get('/:id/subscribers', protect, authorize('owner', 'admin'), async (req,
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    const subscribers = await MessSubscription.find({ 
+    const subscribers = await MessSubscription.find({
       mess: req.params.id,
       status: { $in: ['Active', 'Pending'] }
     })
@@ -473,7 +566,8 @@ router.get('/:id/subscribers', protect, authorize('owner', 'admin'), async (req,
 router.patch('/subscriptions/:id/approve', protect, authorize('owner', 'admin'), async (req, res) => {
   try {
     const subscription = await MessSubscription.findById(req.params.id)
-      .populate('mess');
+      .populate('mess')
+      .populate('user');
 
     if (!subscription) {
       return res.status(404).json({ error: 'Subscription not found' });
@@ -483,8 +577,37 @@ router.patch('/subscriptions/:id/approve', protect, authorize('owner', 'admin'),
       return res.status(403).json({ error: 'Not authorized' });
     }
 
+    if (subscription.status !== 'Pending') {
+      return res.status(400).json({ error: 'Subscription is not pending' });
+    }
+
+    // Update subscription status and tracking fields
     subscription.status = 'Active';
+    subscription.approvedBy = req.user._id;
+    subscription.approvedAt = new Date();
     await subscription.save();
+
+    // Create audit log
+    try {
+      await MessSubscriptionAudit.create({
+        subscription: subscription._id,
+        mess: subscription.mess._id,
+        student: subscription.user._id,
+        action: 'APPROVED',
+        performedBy: req.user._id,
+        metadata: { plan: subscription.plan, amount: subscription.amount }
+      });
+    } catch (auditErr) {
+      console.error('Failed to create audit log for approval:', auditErr);
+    }
+
+    // Send notification to student
+    try {
+      const owner = await User.findById(req.user._id);
+      await notificationService.messSubscriptionApproved(subscription, subscription.mess, subscription.user, owner);
+    } catch (notifErr) {
+      console.error('Failed to send approval notification:', notifErr);
+    }
 
     // Emit approval event
     try {
@@ -492,8 +615,8 @@ router.patch('/subscriptions/:id/approve', protect, authorize('owner', 'admin'),
       if (io) {
         const ownerId = subscription.mess && subscription.mess.owner ? (subscription.mess.owner._id ? subscription.mess.owner._id.toString() : subscription.mess.owner.toString()) : null;
         const userId = subscription.user ? (subscription.user._id ? subscription.user._id.toString() : subscription.user.toString()) : null;
-        if (ownerId) io.to(`user_${ownerId}`).emit('mess:subscription:approved', { subscription, messId: subscription.mess, userId });
-        if (userId) io.to(`user_${userId}`).emit('mess:subscription:approved', { subscription, messId: subscription.mess, ownerId });
+        if (ownerId) io.to(`user_${ownerId}`).emit('mess:subscription:approved', { subscription, messId: subscription.mess._id, userId });
+        if (userId) io.to(`user_${userId}`).emit('mess:subscription:approved', { subscription, messId: subscription.mess._id, ownerId });
       }
     } catch (emitErr) {
       console.error('Socket emit error (messSubscriptionApproved):', emitErr);
@@ -506,6 +629,89 @@ router.patch('/subscriptions/:id/approve', protect, authorize('owner', 'admin'),
   } catch (error) {
     console.error('Error approving subscription:', error);
     res.status(500).json({ error: 'Failed to approve subscription' });
+  }
+});
+
+// PATCH /api/mess/subscriptions/:id/reject - Reject subscription (Owner only)
+router.patch('/subscriptions/:id/reject', protect, authorize('owner', 'admin'), async (req, res) => {
+  try {
+    const { reason } = req.body;
+
+    const subscription = await MessSubscription.findById(req.params.id)
+      .populate('mess')
+      .populate('user');
+
+    if (!subscription) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
+
+    if (subscription.mess.owner.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    if (subscription.status !== 'Pending') {
+      return res.status(400).json({ error: 'Subscription is not pending' });
+    }
+
+    // Update subscription status and tracking fields
+    subscription.status = 'Rejected';
+    subscription.rejectedBy = req.user._id;
+    subscription.rejectedAt = new Date();
+    subscription.rejectionReason = reason || '';
+    await subscription.save();
+
+    // Rollback subscriber count since subscription was never activated
+    if (subscription.mess) {
+      await Mess.findByIdAndUpdate(subscription.mess._id, {
+        $inc: { currentSubscribers: -1, subscribersCount: -1 }
+      });
+    }
+
+    // Create audit log
+    try {
+      await MessSubscriptionAudit.create({
+        subscription: subscription._id,
+        mess: subscription.mess?._id,
+        student: subscription.user?._id,
+        action: 'REJECTED',
+        performedBy: req.user._id,
+        reason: reason || '',
+        metadata: { plan: subscription.plan, amount: subscription.amount }
+      });
+    } catch (auditErr) {
+      console.error('Failed to create audit log for rejection:', auditErr);
+    }
+
+    // Send notification to student
+    try {
+      if (subscription.user) {
+        const owner = await User.findById(req.user._id);
+        await notificationService.messSubscriptionRejected(subscription, subscription.mess, subscription.user, owner, reason);
+      }
+    } catch (notifErr) {
+      console.error('Failed to send rejection notification:', notifErr);
+    }
+
+    // Emit rejection event
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        const ownerId = subscription.mess && subscription.mess.owner ? (subscription.mess.owner._id ? subscription.mess.owner._id.toString() : subscription.mess.owner.toString()) : null;
+        const userId = subscription.user ? (subscription.user._id ? subscription.user._id.toString() : subscription.user.toString()) : null;
+        if (ownerId) io.to(`user_${ownerId}`).emit('mess:subscription:rejected', { subscription, messId: subscription.mess._id, userId });
+        if (userId) io.to(`user_${userId}`).emit('mess:subscription:rejected', { subscription, messId: subscription.mess._id, ownerId });
+      }
+    } catch (emitErr) {
+      console.error('Socket emit error (messSubscriptionRejected):', emitErr);
+    }
+
+    res.json({
+      message: 'Subscription rejected successfully',
+      subscription
+    });
+  } catch (error) {
+    console.error('Error rejecting subscription:', error);
+    res.status(500).json({ error: 'Failed to reject subscription' });
   }
 });
 

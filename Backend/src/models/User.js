@@ -6,6 +6,8 @@ const userSchema = new mongoose.Schema({
   passwordHash: { type: String, required: true },
   role: { type: String, enum: ['student','owner','admin'], required: true },
   phone: { type: String },
+  phoneVerified: { type: Boolean, default: false },
+  phoneVerifiedAt: Date,
   avatar: { type: String },
   
   // Verification status
@@ -21,6 +23,28 @@ const userSchema = new mongoose.Schema({
       documentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Document' }
     },
     isFullyVerified: { type: Boolean, default: false }
+  },
+
+  // Overall verification state (high-level): used for UI and booking gating
+  verificationState: {
+    type: String,
+    enum: [
+      'unverified',
+      'email_verified',
+      'document_uploaded',
+      'verified_student',
+      'verified_intern',
+      'aadhaar_verified',
+      'verification_failed'
+    ],
+    default: 'unverified'
+  },
+
+  // Aadhaar verification metadata (do NOT store Aadhaar number or OTP)
+  aadhaarVerification: {
+    verified: { type: Boolean, default: false },
+    verifiedAt: Date,
+    providerRef: String
   },
   
   // For students - college info

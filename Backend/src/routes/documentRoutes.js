@@ -6,6 +6,7 @@ const fs = require('fs');
 const Document = require('../models/Document');
 const User = require('../models/User');
 const { authenticate, authorize } = require('../middleware/authMiddleware');
+const notificationService = require('../services/notificationService');
 
 // Configure multer for document uploads
 const storage = multer.diskStorage({
@@ -78,6 +79,16 @@ router.post('/upload', authenticate, upload.single('document'), async (req, res)
       });
     }
 
+    // Disallow Aadhaar image uploads - Aadhaar must be verified via OTP flow only
+    if (documentType === 'aadhar') {
+      // remove the stored file immediately
+      try { fs.unlinkSync(req.file.path); } catch (e) {}
+      return res.status(400).json({
+        success: false,
+        message: 'Aadhaar document uploads are not allowed. Use Aadhaar OTP verification instead.'
+      });
+    }
+
     const document = new Document({
       user: req.user.id,
       documentType,
@@ -93,6 +104,13 @@ router.post('/upload', authenticate, upload.single('document'), async (req, res)
     });
 
     await document.save();
+
+    // update user's verificationState to indicate a document was uploaded
+    try {
+      await User.findByIdAndUpdate(req.user.id, { verificationState: 'document_uploaded' });
+    } catch (e) {
+      console.error('Failed to update user verificationState after document upload', e);
+    }
 
     res.status(201).json({
       success: true,
@@ -214,6 +232,28 @@ router.get('/:id', authenticate, async (req, res) => {
       success: false, 
       message: 'Failed to fetch document' 
     });
+  }
+});
+
+// Download a document file (authenticated)
+router.get('/download/:id', authenticate, async (req, res) => {
+  try {
+    const document = await Document.findById(req.params.id).populate('user', 'name email role');
+    if (!document) return res.status(404).json({ success: false, message: 'Document not found' });
+
+    // Only owner or admin can download
+    if (document.user._id.toString() !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
+    const absolutePath = path.join(__dirname, '../../', document.filePath);
+    if (!fs.existsSync(absolutePath)) return res.status(404).json({ success: false, message: 'File not found' });
+
+    // Stream file
+    return res.sendFile(absolutePath);
+  } catch (error) {
+    console.error('Error downloading document:', error);
+    res.status(500).json({ success: false, message: 'Failed to download document' });
   }
 });
 
@@ -341,32 +381,95 @@ router.patch('/admin/verify/:id', authenticate, authorize(['admin']), async (req
       });
     }
 
-    const document = await Document.findByIdAndUpdate(
-      req.params.id,
-      {
-        status,
-        verifiedBy: req.user.id,
-        verifiedAt: new Date(),
-        rejectionReason: status === 'rejected' ? rejectionReason : undefined,
-        notes
-      },
-      { new: true }
-    ).populate('user', 'name email role');
+    // Load document and handle edge cases (expiry, name mismatch)
+    const document = await Document.findById(req.params.id).populate('user', 'name email role');
 
     if (!document) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Document not found' 
-      });
+      return res.status(404).json({ success: false, message: 'Document not found' });
     }
 
-    // TODO: Send notification to user about verification status
+    // If admin attempts to verify but document is expired, reject automatically
+    if (status === 'verified' && document.expiryDate && new Date(document.expiryDate) < new Date()) {
+      document.status = 'rejected';
+      document.rejectionReason = 'Document expired';
+      document.verifiedBy = req.user.id;
+      document.verifiedAt = new Date();
+      document.notes = notes;
+      await document.save();
 
-    res.json({
-      success: true,
-      message: `Document ${status}`,
-      document
-    });
+      // mark user's verification as failed
+      try {
+        const u = await User.findById(document.user._id || document.user);
+        if (u) {
+          u.verificationState = 'verification_failed';
+          await u.save();
+        }
+      } catch (e) {
+        console.error('Failed to mark user verification failed after expired document', e);
+      }
+
+      // respond and notify
+      res.json({ success: false, message: 'Document expired and rejected', document });
+      try {
+        const targetUser = await User.findById(document.user._id || document.user).select('name email');
+        if (targetUser) await notificationService.documentStatusChanged(targetUser, document, 'rejected');
+      } catch (notifyErr) {
+        console.error('Error sending document status notification:', notifyErr);
+      }
+      return;
+    }
+
+    // Apply admin decision
+    document.status = status;
+    document.verifiedBy = req.user.id;
+    document.verifiedAt = new Date();
+    document.rejectionReason = status === 'rejected' ? rejectionReason : undefined;
+    document.notes = notes;
+    await document.save();
+
+    // Update user's verification state based on admin decision
+    try {
+      const u = await User.findById(document.user._id || document.user);
+      if (u) {
+        u.verificationStatus = u.verificationStatus || {};
+        u.verificationStatus.identity = u.verificationStatus.identity || {};
+
+        if (document.status === 'verified' && document.documentCategory === 'identity') {
+          u.verificationStatus.identity.verified = true;
+          u.verificationStatus.identity.verifiedAt = new Date();
+          u.verificationStatus.identity.documentId = document._id;
+
+          const studentDocTypes = ['student_id', 'college_id'];
+          if (studentDocTypes.includes(document.documentType)) {
+            u.verificationState = 'verified_student';
+          } else {
+            u.verificationState = 'verified_intern';
+          }
+        } else if (document.status === 'rejected') {
+          if (req.body.nameMatches === false) {
+            u.verificationState = 'verification_failed';
+          }
+          if (document.rejectionReason === 'Document expired') {
+            u.verificationState = 'verification_failed';
+          }
+        }
+
+        await u.save();
+      }
+    } catch (e) {
+      console.error('Failed to update user verification after admin verify', e);
+    }
+
+    res.json({ success: true, message: `Document ${status}`, document });
+    // Notify the document owner about status change
+    try {
+      const targetUser = await User.findById(document.user).select('name email');
+      if (targetUser) {
+        await notificationService.documentStatusChanged(targetUser, document, status);
+      }
+    } catch (notifyErr) {
+      console.error('Error sending document status notification:', notifyErr);
+    }
   } catch (error) {
     console.error('Error verifying document:', error);
     res.status(500).json({ 
@@ -403,6 +506,40 @@ router.patch('/admin/review/:id', authenticate, authorize(['admin']), async (req
       success: false, 
       message: 'Failed to update document' 
     });
+  }
+});
+
+// User: Request re-verification for a document (owner only)
+router.post('/reverify/:id', authenticate, async (req, res) => {
+  try {
+    const document = await Document.findById(req.params.id);
+    if (!document) return res.status(404).json({ success: false, message: 'Document not found' });
+    if (document.user.toString() !== req.user.id) return res.status(403).json({ success: false, message: 'Access denied' });
+
+    // Only allow reverify if document was rejected or expired
+    const now = new Date();
+    const isExpired = document.expiryDate && new Date(document.expiryDate) < now;
+    if (!(document.status === 'rejected' || isExpired)) {
+      return res.status(400).json({ success: false, message: 'Reverification is allowed only for rejected or expired documents' });
+    }
+
+    document.status = 'pending';
+    document.rejectionReason = undefined;
+    document.verifiedBy = undefined;
+    document.verifiedAt = undefined;
+    await document.save();
+
+    // update user's verificationState
+    try {
+      await User.findByIdAndUpdate(req.user.id, { verificationState: 'document_uploaded' });
+    } catch (e) {
+      console.error('Failed to update user verificationState after reverify request', e);
+    }
+
+    res.json({ success: true, message: 'Reverification requested', document });
+  } catch (error) {
+    console.error('Error requesting reverification:', error);
+    res.status(500).json({ success: false, message: 'Failed to request reverification' });
   }
 });
 

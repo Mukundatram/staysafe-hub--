@@ -10,6 +10,31 @@ const notificationService = require("../services/notificationService");
 
 const router = express.Router();
 
+// Helper: check verification freshness based on env VERIFICATION_EXPIRY_DAYS (defaults to 365)
+function isVerificationFresh(user) {
+  try {
+    const days = parseInt(process.env.VERIFICATION_EXPIRY_DAYS || '365', 10);
+    const verifiedAt = user?.verificationStatus?.identity?.verifiedAt;
+    if (!verifiedAt) return false;
+    const ageDays = (Date.now() - new Date(verifiedAt).getTime()) / (1000 * 60 * 60 * 24);
+    return ageDays <= days;
+  } catch (e) {
+    return false;
+  }
+}
+
+function isAadhaarFresh(user) {
+  try {
+    const days = parseInt(process.env.VERIFICATION_EXPIRY_DAYS || '365', 10);
+    const verifiedAt = user?.aadhaarVerification?.verifiedAt;
+    if (!verifiedAt) return false;
+    const ageDays = (Date.now() - new Date(verifiedAt).getTime()) / (1000 * 60 * 60 * 24);
+    return ageDays <= days;
+  } catch (e) {
+    return false;
+  }
+}
+
 /* ===================== ADMIN: GET ALL BOOKINGS ===================== */
 router.get(
   "/",
@@ -92,6 +117,19 @@ router.post(
           }
 
       // 4️⃣ Prevent duplicate booking
+      // 3.5️⃣ Booking gating: enforce minimum verification state if configured
+      const minVerification = process.env.BOOKING_MIN_VERIFICATION || '';
+      if (minVerification) {
+        const requestingUser = await User.findById(req.user._id).select('verificationState aadhaarVerification verificationStatus role');
+        const aadhaarVerified = requestingUser?.aadhaarVerification?.verified && isAadhaarFresh(requestingUser);
+        const identityVerified = requestingUser?.verificationStatus?.identity?.verified && isVerificationFresh(requestingUser);
+        const isFully = requestingUser?.verificationStatus?.isFullyVerified && isVerificationFresh(requestingUser);
+        const stateMatches = requestingUser?.verificationState === minVerification;
+        if (!(aadhaarVerified || identityVerified || isFully || stateMatches)) {
+          return res.status(403).json({ message: 'Booking requires additional verification. Please complete verification to proceed.' });
+        }
+      }
+
       const existingBooking = await Booking.findOne({
         student: req.user._id,
         property: property_id,
@@ -389,6 +427,79 @@ router.patch(
     } catch (error) {
       console.error("Admin booking update error:", error);
       res.status(500).json({ message: "Server error" });
+    }
+  }
+);
+
+/* ===================== ADMIN: CREATE BOOKING ON BEHALF (OVERRIDE GATING) ===================== */
+router.post(
+  "/admin/create-booking",
+  authenticate,
+  authorize(["admin"]),
+  async (req, res) => {
+    try {
+      const { studentId, propertyId, roomId, mealsSelected, startDate, endDate, roomsCount = 1, membersCount = 1 } = req.body;
+
+      if (!studentId || !propertyId) return res.status(400).json({ message: 'studentId and propertyId are required' });
+      if (!mongoose.Types.ObjectId.isValid(studentId) || !mongoose.Types.ObjectId.isValid(propertyId)) {
+        return res.status(400).json({ message: 'Invalid studentId or propertyId' });
+      }
+
+      const property = await Property.findById(propertyId).populate('owner', 'name email');
+      if (!property) return res.status(400).json({ message: 'Property not found' });
+
+      // Create booking bypassing verification gating
+      let createdBooking;
+
+      if (roomId) {
+        const Room = require('../models/Room');
+        if (!mongoose.Types.ObjectId.isValid(roomId)) return res.status(400).json({ message: 'Invalid room ID' });
+        const room = await Room.findOne({ _id: roomId, property: property._id });
+        if (!room) return res.status(400).json({ message: 'Room not found for this property' });
+
+        const booking = await Booking.create({
+          student: studentId,
+          property: propertyId,
+          room: room._id,
+          roomsCount,
+          membersCount,
+          mealsSelected,
+          startDate,
+          endDate,
+          status: 'Pending'
+        });
+        createdBooking = booking;
+      } else {
+        const booking = await Booking.create({
+          student: studentId,
+          property: propertyId,
+          mealsSelected,
+          startDate,
+          endDate,
+          status: 'Pending'
+        });
+        createdBooking = booking;
+      }
+
+      // Notify owner
+      try {
+        const student = await User.findById(studentId);
+        if (property.owner) {
+          notificationService.bookingRequested(
+            createdBooking,
+            property,
+            student,
+            property.owner
+          ).catch(err => console.error('Notification error (bookingRequested - admin create):', err));
+        }
+      } catch (notifErr) {
+        console.error('Failed to notify owner for admin-created booking', notifErr);
+      }
+
+      res.status(201).json({ message: 'Booking created by admin', booking: createdBooking });
+    } catch (error) {
+      console.error('Admin create booking error:', error);
+      res.status(500).json({ message: 'Server error' });
     }
   }
 );

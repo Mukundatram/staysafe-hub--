@@ -16,7 +16,14 @@ const notificationSchema = new mongoose.Schema({
       'booking_completed',    // Owner receives when student leaves room
       'new_message',          // When receiving a new chat message
       'payment_received',     // Owner receives when payment is made
-      'system'                // System notifications
+      'system',               // System notifications
+      'mess_subscription_created',  // Owner receives when student subscribes
+      'mess_subscription_request',  // Owner receives when student requests subscription
+      'mess_subscription_approved', // Student receives when owner approves
+      'mess_subscription_rejected', // Student receives when owner rejects
+      'mess_subscription_cancelled', // Owner receives when student cancels
+      'document_verified',    // User receives when documents are verified
+      'document_rejected'     // User receives when documents are rejected
     ],
     required: true
   },
