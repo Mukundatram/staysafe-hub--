@@ -72,13 +72,13 @@ const OwnerDashboard = () => {
   const [formData, setFormData] = useState(initialFormState);
   const [selectedImages, setSelectedImages] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
-  
+
   // Chat state
   const [chatModalOpen, setChatModalOpen] = useState(false);
   const [selectedChatData, setSelectedChatData] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [verificationStatus, setVerificationStatus] = useState(null);
-  
+
   // Analytics state
   const [analytics, setAnalytics] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
@@ -129,7 +129,7 @@ const OwnerDashboard = () => {
   const [messSubmitting, setMessSubmitting] = useState(false);
   const [messSubscribers, setMessSubscribers] = useState([]);
   const [generatingMessDescription, setGeneratingMessDescription] = useState(false);
-  
+
   const initialMessFormState = {
     name: '',
     description: '',
@@ -139,7 +139,7 @@ const OwnerDashboard = () => {
     menu: { breakfast: [], lunch: [], dinner: [], snacks: [] },
     pricing: {
       monthly: { oneMeal: '', twoMeals: '', fullDay: '' },
-      daily: { perMeal: '', fullDay: '' }
+      daily: { breakfast: '', lunch: '', dinner: '' }
     },
     timings: {
       breakfast: { start: '08:00', end: '10:00' },
@@ -187,7 +187,7 @@ const OwnerDashboard = () => {
     }
   }, []);
 
-  
+
 
   useEffect(() => {
     fetchProperties();
@@ -290,7 +290,7 @@ const OwnerDashboard = () => {
         console.error('Failed to fetch unread count:', err);
       }
     };
-    
+
     fetchUnreadCount();
     const interval = setInterval(fetchUnreadCount, 10000);
     return () => clearInterval(interval);
@@ -305,9 +305,10 @@ const OwnerDashboard = () => {
       }
 
       setSelectedChatData({
-        property: conversation.property,
+        property: conversation.property || conversation.mess,
         ownerId: conversation.otherUser._id,
-        ownerName: conversation.otherUser.name
+        ownerName: conversation.otherUser.name,
+        type: conversation.type || (conversation.mess ? 'mess' : 'property')
       });
       setChatModalOpen(true);
     } catch (err) {
@@ -472,7 +473,7 @@ const OwnerDashboard = () => {
       setRoomsLoading(false);
     }
   };
-  
+
 
   const generateAIDescription = async () => {
     if (!aiFormData.location || !aiFormData.rent) {
@@ -498,14 +499,14 @@ const OwnerDashboard = () => {
 
   const handleImageSelect = (e) => {
     const files = Array.from(e.target.files);
-    
+
     // Validate file count
     const totalImages = selectedImages.length + files.length;
     if (totalImages > 6) {
       toast.error('Maximum 6 images allowed');
       return;
     }
-    
+
     // Validate file types and size
     const validFiles = files.filter(file => {
       if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type)) {
@@ -518,10 +519,10 @@ const OwnerDashboard = () => {
       }
       return true;
     });
-    
+
     // Add to selected images
     setSelectedImages(prev => [...prev, ...validFiles]);
-    
+
     // Generate previews
     validFiles.forEach(file => {
       const reader = new FileReader();
@@ -544,13 +545,13 @@ const OwnerDashboard = () => {
 
   const handleAddProperty = async (e) => {
     e.preventDefault();
-    
+
     // Validate minimum 3 images
     if (selectedImages.length < 3) {
       toast.error('Please upload at least 3 images');
       return;
     }
-    
+
     try {
       setSubmitting(true);
       const propertyData = {
@@ -732,7 +733,7 @@ const OwnerDashboard = () => {
         pricing: messFormData.pricing,
         location: messFormData.location?.address || ''
       });
-      
+
       if (response.success && response.description) {
         setMessFormData(prev => ({
           ...prev,
@@ -756,9 +757,9 @@ const OwnerDashboard = () => {
       toast.error('Maximum 5 images allowed');
       return;
     }
-    
+
     setMessImages(prev => [...prev, ...files]);
-    
+
     // Create previews
     files.forEach(file => {
       const reader = new FileReader();
@@ -778,18 +779,22 @@ const OwnerDashboard = () => {
     e.preventDefault();
     try {
       setMessSubmitting(true);
-      
+
       // Format data for the backend - map fullDay to allMeals for consistency
       const formattedPricing = {
         monthly: {
-          oneMeal: messFormData.pricing.monthly.oneMeal,
-          twoMeals: messFormData.pricing.monthly.twoMeals,
-          allMeals: messFormData.pricing.monthly.fullDay, // Map fullDay to allMeals
-          fullDay: messFormData.pricing.monthly.fullDay   // Keep for backward compat
+          oneMeal: messFormData.pricing?.monthly?.oneMeal || '',
+          twoMeals: messFormData.pricing?.monthly?.twoMeals || '',
+          allMeals: messFormData.pricing?.monthly?.fullDay || '', // Map fullDay to allMeals
+          fullDay: messFormData.pricing?.monthly?.fullDay || ''   // Keep for backward compat
         },
-        daily: messFormData.pricing.daily
+        daily: {
+          breakfast: messFormData.pricing?.daily?.breakfast || '',
+          lunch: messFormData.pricing?.daily?.lunch || '',
+          dinner: messFormData.pricing?.daily?.dinner || ''
+        }
       };
-      
+
       const formattedData = {
         name: messFormData.name,
         description: messFormData.description,
@@ -804,7 +809,7 @@ const OwnerDashboard = () => {
         timings: messFormData.timings,
         features: messFormData.features
       };
-      
+
       await messService.create(formattedData, messImages);
       toast.success('Mess service created successfully!');
       setShowAddMessModal(false);
@@ -825,13 +830,21 @@ const OwnerDashboard = () => {
     setMessFormData({
       name: mess.name || '',
       description: mess.description || '',
-      location: mess.location && typeof mess.location === 'object' ? { address: mess.location.address || mess.location, lat: mess.location.lat || null, lng: mess.location.lng || null } : { address: mess.location || '' , lat: null, lng: null },
+      location: mess.location && typeof mess.location === 'object' ? { address: mess.location.address || mess.location, lat: mess.location.lat || null, lng: mess.location.lng || null } : { address: mess.location || '', lat: null, lng: null },
       cuisineType: mess.cuisineType || [],
       mealTypes: mess.mealTypes || ['lunch', 'dinner'],
       menu: mess.menu || { breakfast: [], lunch: [], dinner: [], snacks: [] },
-      pricing: mess.pricing || {
-        monthly: { oneMeal: '', twoMeals: '', fullDay: '' },
-        daily: { perMeal: '', fullDay: '' }
+      pricing: {
+        monthly: {
+          oneMeal: mess.pricing?.monthly?.oneMeal || '',
+          twoMeals: mess.pricing?.monthly?.twoMeals || '',
+          fullDay: mess.pricing?.monthly?.fullDay || mess.pricing?.monthly?.allMeals || ''
+        },
+        daily: {
+          breakfast: mess.pricing?.daily?.breakfast || '',
+          lunch: mess.pricing?.daily?.lunch || '',
+          dinner: mess.pricing?.daily?.dinner || ''
+        }
       },
       timings: mess.timings || {
         breakfast: { start: '08:00', end: '10:00' },
@@ -848,18 +861,22 @@ const OwnerDashboard = () => {
     e.preventDefault();
     try {
       setMessSubmitting(true);
-      
+
       // Format data for the backend - map fullDay to allMeals for consistency
       const formattedPricing = {
         monthly: {
-          oneMeal: messFormData.pricing.monthly.oneMeal,
-          twoMeals: messFormData.pricing.monthly.twoMeals,
-          allMeals: messFormData.pricing.monthly.fullDay, // Map fullDay to allMeals
-          fullDay: messFormData.pricing.monthly.fullDay   // Keep for backward compat
+          oneMeal: messFormData.pricing?.monthly?.oneMeal || '',
+          twoMeals: messFormData.pricing?.monthly?.twoMeals || '',
+          allMeals: messFormData.pricing?.monthly?.fullDay || '', // Map fullDay to allMeals
+          fullDay: messFormData.pricing?.monthly?.fullDay || ''   // Keep for backward compat
         },
-        daily: messFormData.pricing.daily
+        daily: {
+          breakfast: messFormData.pricing?.daily?.breakfast || '',
+          lunch: messFormData.pricing?.daily?.lunch || '',
+          dinner: messFormData.pricing?.daily?.dinner || ''
+        }
       };
-      
+
       const formattedData = {
         name: messFormData.name,
         description: messFormData.description,
@@ -874,7 +891,7 @@ const OwnerDashboard = () => {
         timings: messFormData.timings,
         features: messFormData.features
       };
-      
+
       await messService.update(selectedMess._id, formattedData);
       toast.success('Mess service updated successfully!');
       setShowEditMessModal(false);
@@ -891,7 +908,7 @@ const OwnerDashboard = () => {
 
   const handleDeleteMessService = async (messId) => {
     if (!window.confirm('Are you sure you want to delete this mess service?')) return;
-    
+
     try {
       await messService.delete(messId);
       toast.success('Mess service deleted successfully!');
@@ -982,13 +999,13 @@ const OwnerDashboard = () => {
             transition={{ delay: 0.05 }}
             style={{ marginBottom: '1.5rem' }}
           >
-            <Card padding="md" style={{ 
+            <Card padding="md" style={{
               background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.2) 100%)',
               border: '1px solid rgba(59, 130, 246, 0.3)'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
-                <div style={{ 
-                  width: '60px', height: '60px', 
+                <div style={{
+                  width: '60px', height: '60px',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   background: 'var(--primary)', color: 'white', borderRadius: '12px'
                 }}>
@@ -1199,383 +1216,438 @@ const OwnerDashboard = () => {
               )}
             </Card>
           </motion.div>
-        ) : 
-        // Messages Section
-        activeTab === 'reviews' ? (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <Card padding="lg">
-              <div className="card-header">
-                <h2>
-                  <HiOutlineStar size={24} />
-                  Property Reviews
-                </h2>
-              </div>
-              {properties.length === 0 ? (
-                <EmptyState icon={HiOutlineStar} title="No properties" description="Add properties to receive reviews." />
-              ) : (
-                <div className="owner-reviews-list">
-                  {properties.map((property) => (
-                    <Card key={property._id} padding="md" className="property-review-card">
-                      <div className="property-review-header">
-                        <h3>{property.title}</h3>
-                        <span className="property-meta">₹{property.rent?.toLocaleString()}/month</span>
-                      </div>
-                      <ReviewList propertyId={property._id} averageRating={property.rating?.average || 0} reviewCount={property.rating?.count || 0} ratingBreakdown={property.rating?.distribution || {}} allowOwnerRespond={true} />
-                    </Card>
-                  ))}
+        ) :
+          // Messages Section
+          activeTab === 'reviews' ? (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <Card padding="lg">
+                <div className="card-header">
+                  <h2>
+                    <HiOutlineStar size={24} />
+                    Reviews
+                  </h2>
                 </div>
-              )}
-            </Card>
-          </motion.div>
-        ) : 
-        activeTab === 'messages' ? (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <Card padding="lg" className="messages-section">
-              <div className="card-header">
-                <h2>
-                  <HiOutlineChatAlt2 size={24} />
-                  Student Messages
-                </h2>
-              </div>
-              <ChatList onSelectChat={handleSelectChat} />
-            </Card>
-          </motion.div>
-        ) : activeTab === 'analytics' ? (
-          /* Analytics Section */
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            {analyticsLoading ? (
-              <Card padding="xl">
-                <Loading size="lg" text="Loading analytics..." />
+
+                {properties.length === 0 && messServices.length === 0 ? (
+                  <EmptyState icon={HiOutlineStar} title="No listings" description="Add properties or mess services to receive reviews." />
+                ) : (
+                  <div className="owner-reviews-list">
+                    {/* Property Reviews */}
+                    {properties.length > 0 && (
+                      <div className="reviews-subsection">
+                        <h3 className="subsection-title">Property Reviews</h3>
+                        {properties.map((property) => (
+                          <Card key={property._id} padding="md" className="property-review-card">
+                            <div className="property-review-header">
+                              <h3>{property.title}</h3>
+                              <span className="property-meta">Property</span>
+                            </div>
+                            <ReviewList
+                              propertyId={property._id}
+                              averageRating={property.rating?.average || 0}
+                              reviewCount={property.rating?.count || 0}
+                              ratingBreakdown={property.rating?.distribution || {}}
+                              allowOwnerRespond={true}
+                            />
+                          </Card>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Mess Reviews */}
+                    {messServices.length > 0 && (
+                      <div className="reviews-subsection" style={{ marginTop: '2rem' }}>
+                        <h3 className="subsection-title">Mess Service Reviews</h3>
+                        {messServices.map((mess) => (
+                          <Card key={mess._id} padding="md" className="property-review-card">
+                            <div className="property-review-header">
+                              <h3>{mess.name}</h3>
+                              <span className="property-meta">Mess Service</span>
+                            </div>
+                            <ReviewList
+                              messId={mess._id}
+                              averageRating={mess.ratings?.average || 0}
+                              reviewCount={mess.ratings?.count || 0}
+                              ratingBreakdown={mess.ratings?.distribution || {}}
+                              allowOwnerRespond={true}
+                            />
+                          </Card>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </Card>
-            ) : analytics ? (
-              <div className="analytics-section">
-                {/* Analytics Overview Cards */}
-                <div className="analytics-grid">
-                  <Card padding="md" className="analytics-card">
-                    <div className="analytics-card-header">
-                      <div className="analytics-icon occupancy">
-                        <HiOutlineChartBar size={24} />
-                      </div>
-                      <span className="analytics-label">Occupancy Rate</span>
-                    </div>
-                    <div className="analytics-value-large">{analytics.properties?.occupancyRate || 0}%</div>
-                    <div className="analytics-bar">
-                      <div 
-                        className="analytics-bar-fill" 
-                        style={{ width: `${analytics.properties?.occupancyRate || 0}%` }}
-                      />
-                    </div>
-                    <div className="analytics-detail">
-                      {analytics.properties?.occupied || 0} of {analytics.properties?.total || 0} properties occupied
-                    </div>
-                  </Card>
-
-                  <Card padding="md" className="analytics-card">
-                    <div className="analytics-card-header">
-                      <div className="analytics-icon revenue">
-                        <HiOutlineCurrencyRupee size={24} />
-                      </div>
-                      <span className="analytics-label">Total Revenue</span>
-                    </div>
-                    <div className="analytics-value-large">₹{(analytics.revenue?.total || 0).toLocaleString()}</div>
-                    <div className="analytics-detail">
-                      Avg ₹{(analytics.revenue?.averagePerProperty || 0).toLocaleString()} per property
-                    </div>
-                  </Card>
-
-                  <Card padding="md" className="analytics-card">
-                    <div className="analytics-card-header">
-                      <div className="analytics-icon bookings">
-                        <HiOutlineEye size={24} />
-                      </div>
-                      <span className="analytics-label">Total Bookings</span>
-                    </div>
-                    <div className="analytics-value-large">{analytics.bookings?.total || 0}</div>
-                    <div className="analytics-breakdown">
-                      <span className="breakdown-item confirmed">
-                        <HiOutlineCheck size={14} /> {analytics.bookings?.confirmed || 0} Confirmed
-                      </span>
-                      <span className="breakdown-item pending">
-                        ⏳ {analytics.bookings?.pending || 0} Pending
-                      </span>
-                    </div>
-                  </Card>
-                </div>
-
-                {/* Revenue Chart */}
-                <Card padding="lg" className="chart-card">
+            </motion.div>
+          ) :
+            activeTab === 'messages' ? (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                <Card padding="lg" className="messages-section">
                   <div className="card-header">
                     <h2>
-                      <HiOutlineTrendingUp size={24} />
-                      Revenue Trend (Last 6 Months)
+                      <HiOutlineChatAlt2 size={24} />
+                      Student Messages
                     </h2>
                   </div>
-                  <div className="chart-container">
-                    <div className="bar-chart">
-                      {analytics.revenue?.monthly?.map((month, index) => {
-                        const maxRevenue = Math.max(...analytics.revenue.monthly.map(m => m.revenue), 1);
-                        const height = (month.revenue / maxRevenue) * 100;
-                        return (
-                          <div key={index} className="bar-item">
-                            <div className="bar-wrapper">
-                              <div 
-                                className="bar" 
-                                style={{ height: `${height}%` }}
-                                title={`₹${month.revenue.toLocaleString()}`}
-                              >
-                                <span className="bar-value">₹{month.revenue >= 1000 ? `${(month.revenue/1000).toFixed(0)}k` : month.revenue}</span>
-                              </div>
-                            </div>
-                            <span className="bar-label">{month.month}</span>
+                  <ChatList onSelectChat={handleSelectChat} />
+                </Card>
+              </motion.div>
+            ) : activeTab === 'analytics' ? (
+              /* Analytics Section */
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                {analyticsLoading ? (
+                  <Card padding="xl">
+                    <Loading size="lg" text="Loading analytics..." />
+                  </Card>
+                ) : analytics ? (
+                  <div className="analytics-section">
+                    {/* Analytics Overview Cards */}
+                    <div className="analytics-grid">
+                      <Card padding="md" className="analytics-card">
+                        <div className="analytics-card-header">
+                          <div className="analytics-icon occupancy">
+                            <HiOutlineChartBar size={24} />
                           </div>
-                        );
-                      })}
+                          <span className="analytics-label">Occupancy Rate</span>
+                        </div>
+                        <div className="analytics-value-large">{analytics.properties?.occupancyRate || 0}%</div>
+                        <div className="analytics-bar">
+                          <div
+                            className="analytics-bar-fill"
+                            style={{ width: `${analytics.properties?.occupancyRate || 0}%` }}
+                          />
+                        </div>
+                        <div className="analytics-detail">
+                          {analytics.properties?.occupied || 0} of {analytics.properties?.total || 0} properties occupied
+                        </div>
+                      </Card>
+
+                      <Card padding="md" className="analytics-card">
+                        <div className="analytics-card-header">
+                          <div className="analytics-icon revenue">
+                            <HiOutlineCurrencyRupee size={24} />
+                          </div>
+                          <span className="analytics-label">Total Revenue</span>
+                        </div>
+                        <div className="analytics-value-large">₹{(analytics.revenue?.total || 0).toLocaleString()}</div>
+                        <div className="analytics-detail">
+                          Avg ₹{(analytics.revenue?.averagePerProperty || 0).toLocaleString()} per property
+                        </div>
+                      </Card>
+
+                      <Card padding="md" className="analytics-card">
+                        <div className="analytics-card-header">
+                          <div className="analytics-icon bookings">
+                            <HiOutlineEye size={24} />
+                          </div>
+                          <span className="analytics-label">Total Bookings</span>
+                        </div>
+                        <div className="analytics-value-large">{analytics.bookings?.total || 0}</div>
+                        <div className="analytics-breakdown">
+                          <span className="breakdown-item confirmed">
+                            <HiOutlineCheck size={14} /> {analytics.bookings?.confirmed || 0} Confirmed
+                          </span>
+                          <span className="breakdown-item pending">
+                            ⏳ {analytics.bookings?.pending || 0} Pending
+                          </span>
+                        </div>
+                      </Card>
+                    </div>
+
+                    {/* Revenue Chart */}
+                    <Card padding="lg" className="chart-card">
+                      <div className="card-header">
+                        <h2>
+                          <HiOutlineTrendingUp size={24} />
+                          Revenue Trend (Last 6 Months)
+                        </h2>
+                      </div>
+                      <div className="chart-container">
+                        <div className="bar-chart">
+                          {analytics.revenue?.monthly?.map((month, index) => {
+                            const maxRevenue = Math.max(...analytics.revenue.monthly.map(m => m.revenue), 1);
+                            const height = (month.revenue / maxRevenue) * 100;
+                            return (
+                              <div key={index} className="bar-item">
+                                <div className="bar-wrapper">
+                                  <div
+                                    className="bar"
+                                    style={{ height: `${height}%` }}
+                                    title={`₹${month.revenue.toLocaleString()}`}
+                                  >
+                                    <span className="bar-value">₹{month.revenue >= 1000 ? `${(month.revenue / 1000).toFixed(0)}k` : month.revenue}</span>
+                                  </div>
+                                </div>
+                                <span className="bar-label">{month.month}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </Card>
+
+                    {/* Property Performance */}
+                    <Card padding="lg" className="performance-card">
+                      <div className="card-header">
+                        <h2>
+                          <HiOutlineStar size={24} />
+                          Property Performance
+                        </h2>
+                      </div>
+                      {analytics.propertyPerformance?.length > 0 ? (
+                        <div className="performance-table">
+                          <div className="performance-header">
+                            <span>Property</span>
+                            <span>Rent</span>
+                            <span>Bookings</span>
+                            <span>Revenue</span>
+                            <span>Rating</span>
+                            <span>Status</span>
+                          </div>
+                          {analytics.propertyPerformance.map((property) => (
+                            <div key={property.id} className="performance-row">
+                              <span className="property-title">{property.title}</span>
+                              <span>₹{property.rent?.toLocaleString()}</span>
+                              <span>{property.confirmedBookings}</span>
+                              <span className="revenue-cell">₹{property.revenue?.toLocaleString()}</span>
+                              <span className="rating-cell">
+                                <HiOutlineStar size={14} />
+                                {property.rating?.toFixed(1) || '0.0'}
+                              </span>
+                              <span>
+                                <Badge variant={property.isAvailable ? 'success' : 'warning'}>
+                                  {property.isAvailable ? 'Available' : 'Booked'}
+                                </Badge>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <EmptyState
+                          icon={HiOutlineHome}
+                          title="No properties yet"
+                          description="Add properties to see their performance analytics."
+                        />
+                      )}
+                    </Card>
+                  </div>
+                ) : (
+                  <Card padding="xl">
+                    <EmptyState
+                      icon={HiOutlineChartBar}
+                      title="No analytics available"
+                      description="Analytics will appear here once you have properties and bookings."
+                    />
+                  </Card>
+                )}
+              </motion.div>
+            ) : activeTab === 'mess' ? (
+              /* Mess Services Section */
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                <Card padding="lg" className="mess-section">
+                  <div className="card-header">
+                    <h2>
+                      <HiOutlineCake size={24} />
+                      My Mess Services
+                    </h2>
+                    <div className="flex gap-2">
+                      <Link to="/owner/mess/subscriptions">
+                        <Button variant="outline" size="sm" className="relative">
+                          <HiOutlineUsers size={16} />
+                          Requests
+                          {messServices.reduce((acc, mess) => acc + (mess.pendingSubscribers || 0), 0) > 0 && (
+                            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                            </span>
+                          )}
+                        </Button>
+                      </Link>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => setShowAddMessModal(true)}
+                      >
+                        <HiOutlinePlus size={16} />
+                        Add Mess Service
+                      </Button>
                     </div>
                   </div>
+
+                  {messLoading ? (
+                    <Loading size="md" text="Loading mess services..." />
+                  ) : messServices.length === 0 ? (
+                    <EmptyState
+                      icon={HiOutlineCake}
+                      title="No mess services yet"
+                      description="Start offering mess/tiffin services to students nearby."
+                      action={{
+                        label: 'Add Mess Service',
+                        onClick: () => setShowAddMessModal(true),
+                        icon: <HiOutlinePlus size={18} />,
+                      }}
+                    />
+                  ) : (
+                    <div className="mess-grid">
+                      {messServices.map((mess) => (
+                        <Card key={mess._id} padding="md" className="mess-card">
+                          <div className="mess-card-header">
+                            <h3>{mess.name}</h3>
+                            {mess.isVerified && (
+                              <Badge variant="success" size="sm">
+                                <HiOutlineBadgeCheck size={14} /> Verified
+                              </Badge>
+                            )}
+                          </div>
+
+                          <p className="mess-location">
+                            <HiOutlineLocationMarker size={16} />
+                            {mess.location?.address || mess.address || mess.location || 'Location not set'}
+                          </p>
+
+                          <div className="mess-stats">
+                            <div className="mess-stat relative">
+                              <span className="stat-value">{mess.subscribers || 0}</span>
+                              <span className="stat-label">Subscribers</span>
+                              {mess.pendingSubscribers > 0 && (
+                                <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                                </span>
+                              )}
+                            </div>
+                            <div className="mess-stat">
+                              <span className="stat-value">₹{mess.pricing?.monthly?.twoMeals || 0}</span>
+                              <span className="stat-label">Per Month</span>
+                            </div>
+                            <div className="mess-stat">
+                              <span className="stat-value">{mess.ratings?.average?.toFixed(1) || '0.0'}</span>
+                              <span className="stat-label">Rating</span>
+                            </div>
+                          </div>
+
+                          <div className="mess-meals">
+                            {mess.mealTypes?.map(meal => (
+                              <span key={meal} className="meal-tag">{meal}</span>
+                            ))}
+                          </div>
+
+                          <div className="mess-actions">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openEditMessModal(mess)}
+                            >
+                              <HiOutlinePencil size={16} />
+                              Edit
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedMess(mess);
+                                fetchMessSubscribers(mess._id);
+                              }}
+                            >
+                              <HiOutlineUsers size={16} />
+                              Subscribers
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteMessService(mess._id)}
+                              className="delete-btn"
+                            >
+                              <HiOutlineTrash size={16} />
+                            </Button>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
                 </Card>
 
-                {/* Property Performance */}
-                <Card padding="lg" className="performance-card">
-                  <div className="card-header">
-                    <h2>
-                      <HiOutlineStar size={24} />
-                      Property Performance
-                    </h2>
-                  </div>
-                  {analytics.propertyPerformance?.length > 0 ? (
-                    <div className="performance-table">
-                      <div className="performance-header">
-                        <span>Property</span>
-                        <span>Rent</span>
-                        <span>Bookings</span>
-                        <span>Revenue</span>
-                        <span>Rating</span>
-                        <span>Status</span>
-                      </div>
-                      {analytics.propertyPerformance.map((property) => (
-                        <div key={property.id} className="performance-row">
-                          <span className="property-title">{property.title}</span>
-                          <span>₹{property.rent?.toLocaleString()}</span>
-                          <span>{property.confirmedBookings}</span>
-                          <span className="revenue-cell">₹{property.revenue?.toLocaleString()}</span>
-                          <span className="rating-cell">
-                            <HiOutlineStar size={14} />
-                            {property.rating?.toFixed(1) || '0.0'}
-                          </span>
-                          <span>
-                            <Badge variant={property.isAvailable ? 'success' : 'warning'}>
-                              {property.isAvailable ? 'Available' : 'Booked'}
-                            </Badge>
-                          </span>
+                {/* Subscribers List Modal */}
+                {selectedMess && messSubscribers.length > 0 && (
+                  <Card padding="lg" className="subscribers-section" style={{ marginTop: '1rem' }}>
+                    <div className="card-header">
+                      <h2>
+                        <HiOutlineUsers size={24} />
+                        Subscribers - {selectedMess.name}
+                      </h2>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedMess(null);
+                          setMessSubscribers([]);
+                        }}
+                      >
+                        <HiOutlineX size={16} />
+                      </Button>
+                    </div>
+                    <div className="subscribers-list">
+                      {messSubscribers.map((sub) => (
+                        <div key={sub._id} className="subscriber-item">
+                          <div className="subscriber-info">
+                            <span className="subscriber-name">{sub.user?.name || 'Unknown'}</span>
+                            <span className="subscriber-email">{sub.user?.email && (<>
+                              | <a href={`mailto:${sub.user.email}`}>{sub.user.email}</a>
+                            </>)}</span>
+                            <span className="subscriber-plan">Plan: {sub.plan} {sub.selectedMeals?.length > 0 && (<>
+                              | Meals: {sub.selectedMeals.join(', ')}
+                            </>)}
+                            </span>
+                            <span className="subscriber-date">Subscribed: {sub.createdAt ? new Date(sub.createdAt).toLocaleDateString() : 'N/A'}</span>
+                            <span className="subscriber-status">
+                              <Badge variant={sub.status === 'Active' ? 'success' : sub.status === 'Pending' ? 'warning' : 'gray'}>
+                                {sub.status}
+                              </Badge>
+                            </span>
+                          </div>
+                          <div className="subscriber-actions">
+                            {sub.status === 'Pending' && (
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => handleApproveSubscription(sub._id)}
+                              >
+                                Approve
+                              </Button>
+                            )}
+                            {sub.status === 'Active' && (
+                              <Button
+                                variant="danger"
+                                size="sm"
+                                onClick={() => {
+                                  // Optionally implement cancel subscription for owner
+                                  toast('Cancel subscription not implemented');
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <EmptyState
-                      icon={HiOutlineHome}
-                      title="No properties yet"
-                      description="Add properties to see their performance analytics."
-                    />
-                  )}
-                </Card>
-              </div>
-            ) : (
-              <Card padding="xl">
-                <EmptyState
-                  icon={HiOutlineChartBar}
-                  title="No analytics available"
-                  description="Analytics will appear here once you have properties and bookings."
-                />
-              </Card>
-            )}
-          </motion.div>
-        ) : activeTab === 'mess' ? (
-          /* Mess Services Section */
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <Card padding="lg" className="mess-section">
-              <div className="card-header">
-                <h2>
-                  <HiOutlineCake size={24} />
-                  My Mess Services
-                </h2>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => setShowAddMessModal(true)}
-                >
-                  <HiOutlinePlus size={16} />
-                  Add Mess Service
-                </Button>
-              </div>
-              
-              {messLoading ? (
-                <Loading size="md" text="Loading mess services..." />
-              ) : messServices.length === 0 ? (
-                <EmptyState
-                  icon={HiOutlineCake}
-                  title="No mess services yet"
-                  description="Start offering mess/tiffin services to students nearby."
-                  action={{
-                    label: 'Add Mess Service',
-                    onClick: () => setShowAddMessModal(true),
-                    icon: <HiOutlinePlus size={18} />,
-                  }}
-                />
-              ) : (
-                <div className="mess-grid">
-                  {messServices.map((mess) => (
-                    <Card key={mess._id} padding="md" className="mess-card">
-                      <div className="mess-card-header">
-                        <h3>{mess.name}</h3>
-                        {mess.isVerified && (
-                          <Badge variant="success" size="sm">
-                            <HiOutlineBadgeCheck size={14} /> Verified
-                          </Badge>
-                        )}
-                      </div>
-                      
-                      <p className="mess-location">
-                        <HiOutlineLocationMarker size={16} />
-                        {mess.location?.address || mess.address || mess.location || 'Location not set'}
-                      </p>
-                      
-                      <div className="mess-stats">
-                        <div className="mess-stat">
-                          <span className="stat-value">{mess.subscribers || 0}</span>
-                          <span className="stat-label">Subscribers</span>
-                        </div>
-                        <div className="mess-stat">
-                          <span className="stat-value">₹{mess.pricing?.monthly?.twoMeals || 0}</span>
-                          <span className="stat-label">Per Month</span>
-                        </div>
-                        <div className="mess-stat">
-                          <span className="stat-value">{mess.ratings?.average?.toFixed(1) || '0.0'}</span>
-                          <span className="stat-label">Rating</span>
-                        </div>
-                      </div>
-                      
-                      <div className="mess-meals">
-                        {mess.mealTypes?.map(meal => (
-                          <span key={meal} className="meal-tag">{meal}</span>
-                        ))}
-                      </div>
-                      
-                      <div className="mess-actions">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openEditMessModal(mess)}
-                        >
-                          <HiOutlinePencil size={16} />
-                          Edit
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedMess(mess);
-                            fetchMessSubscribers(mess._id);
-                          }}
-                        >
-                          <HiOutlineUsers size={16} />
-                          Subscribers
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteMessService(mess._id)}
-                          className="delete-btn"
-                        >
-                          <HiOutlineTrash size={16} />
-                        </Button>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </Card>
-            
-            {/* Subscribers List Modal */}
-            {selectedMess && messSubscribers.length > 0 && (
-              <Card padding="lg" className="subscribers-section" style={{ marginTop: '1rem' }}>
-                <div className="card-header">
-                  <h2>
-                    <HiOutlineUsers size={24} />
-                    Subscribers - {selectedMess.name}
-                  </h2>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedMess(null);
-                      setMessSubscribers([]);
-                    }}
-                  >
-                    <HiOutlineX size={16} />
-                  </Button>
-                </div>
-                <div className="subscribers-list">
-                  {messSubscribers.map((sub) => (
-                    <div key={sub._id} className="subscriber-item">
-                      <div className="subscriber-info">
-                        <span className="subscriber-name">{sub.user?.name || 'Unknown'}</span>
-                        <span className="subscriber-email">{sub.user?.email && (<>
-                          | <a href={`mailto:${sub.user.email}`}>{sub.user.email}</a>
-                        </>)}</span>
-                        <span className="subscriber-plan">Plan: {sub.plan} {sub.selectedMeals?.length > 0 && (<>
-                          | Meals: {sub.selectedMeals.join(', ')}
-                        </>)}
-                        </span>
-                        <span className="subscriber-date">Subscribed: {sub.createdAt ? new Date(sub.createdAt).toLocaleDateString() : 'N/A'}</span>
-                        <span className="subscriber-status">
-                          <Badge variant={sub.status === 'Active' ? 'success' : sub.status === 'Pending' ? 'warning' : 'gray'}>
-                            {sub.status}
-                          </Badge>
-                        </span>
-                      </div>
-                      <div className="subscriber-actions">
-                        {sub.status === 'Pending' && (
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => handleApproveSubscription(sub._id)}
-                          >
-                            Approve
-                          </Button>
-                        )}
-                        {sub.status === 'Active' && (
-                          <Button
-                            variant="danger"
-                            size="sm"
-                            onClick={() => {
-                              // Optionally implement cancel subscription for owner
-                              toast('Cancel subscription not implemented');
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <style>{`
+                    <style>{`
                   .subscribers-list {
                     display: flex;
                     flex-direction: column;
@@ -1612,157 +1684,157 @@ const OwnerDashboard = () => {
                     gap: 0.5rem;
                   }
                 `}</style>
-              </Card>
-            )}
-          </motion.div>
-        ) : (
-        /* Properties Grid */
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          {filteredProperties.length === 0 ? (
-            <Card padding="xl">
-              <EmptyState
-                icon={HiOutlineHome}
-                title={activeTab === 'all' ? 'No properties listed' : `No ${activeTab} properties`}
-                description={activeTab === 'all' 
-                  ? 'Start by adding your first property to get bookings from students.'
-                  : `You don't have any ${activeTab} properties at the moment.`}
-                action={activeTab === 'all' ? {
-                  label: 'Add Property',
-                  onClick: () => setShowAddModal(true),
-                  icon: <HiOutlinePlus size={18} />,
-                } : undefined}
-              />
-            </Card>
-          ) : (
-            <div className="properties-grid">
-              {filteredProperties.map((property, index) => (
-                <motion.div
-                  key={property._id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 + index * 0.05 }}
-                >
-                  <Card padding="lg" hoverable className="property-card">
-                    <div className="property-header">
-                      <div className="property-image">
-                        {property.images && property.images.length > 0 ? (
-                          <img 
-                            src={`http://localhost:4000${property.images[0]}`} 
-                            alt={property.title}
-                          />
-                        ) : (
-                          <HiOutlinePhotograph size={32} />
-                        )}
-                      </div>
-                      <div className="property-badge">
-                        <Badge variant={property.isAvailable ? 'success' : 'warning'}>
-                          {property.isAvailable ? 'Available' : 'Booked'}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <div className="property-body">
-                      <h3 className="property-title">{property.title}</h3>
-                      
-                      {property.location && (
-                        <p className="property-location">
-                          <HiOutlineLocationMarker size={16} />
-                          {property.location}
-                        </p>
-                      )}
-
-                      <p className="property-description">
-                        {property.description || 'No description available'}
-                      </p>
-
-                      <div className="property-rent">
-                        <HiOutlineCurrencyRupee size={18} />
-                        <span className="rent-amount">₹{property.rent?.toLocaleString()}</span>
-                        <span className="rent-period">/month</span>
-                      </div>
-
-                      {property.amenities?.length > 0 && (
-                        <div className="property-tags">
-                          <HiOutlineWifi size={14} />
-                          {property.amenities.slice(0, 3).map((amenity, i) => (
-                            <span key={i} className="tag">{amenity}</span>
-                          ))}
-                          {property.amenities.length > 3 && (
-                            <span className="tag more">+{property.amenities.length - 3}</span>
-                          )}
-                        </div>
-                      )}
-
-                      {property.meals?.length > 0 && (
-                        <div className="property-tags meals">
-                          <HiOutlineCake size={14} />
-                          {property.meals.map((meal, i) => (
-                            <span key={i} className="tag">{meal}</span>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Mini Map Preview */}
-                      {property.coordinates?.lat && property.coordinates?.lng && (
-                        <div className="property-mini-map">
-                          <div className="mini-map-header">
-                            <HiOutlineMap size={14} />
-                            <span>Location on Map</span>
-                          </div>
-                          <MapComponent
-                            center={[property.coordinates.lat, property.coordinates.lng]}
-                            zoom={14}
-                            markers={[{
-                              id: property._id,
-                              lat: property.coordinates.lat,
-                              lng: property.coordinates.lng,
-                              title: property.title,
-                            }]}
-                            height="120px"
-                            interactive={false}
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="property-actions">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        leftIcon={<HiOutlinePencil size={16} />}
-                        onClick={() => openEditModal(property)}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        leftIcon={<HiOutlineUsers size={16} />}
-                        onClick={() => openRoomsModal(property)}
-                      >
-                        Manage Rooms
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        leftIcon={<HiOutlineTrash size={16} />}
-                        onClick={() => openDeleteModal(property)}
-                        className="delete-btn"
-                      >
-                        Delete
-                      </Button>
-                    </div>
                   </Card>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </motion.div>
-        )}
+                )}
+              </motion.div>
+            ) : (
+              /* Properties Grid */
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                {filteredProperties.length === 0 ? (
+                  <Card padding="xl">
+                    <EmptyState
+                      icon={HiOutlineHome}
+                      title={activeTab === 'all' ? 'No properties listed' : `No ${activeTab} properties`}
+                      description={activeTab === 'all'
+                        ? 'Start by adding your first property to get bookings from students.'
+                        : `You don't have any ${activeTab} properties at the moment.`}
+                      action={activeTab === 'all' ? {
+                        label: 'Add Property',
+                        onClick: () => setShowAddModal(true),
+                        icon: <HiOutlinePlus size={18} />,
+                      } : undefined}
+                    />
+                  </Card>
+                ) : (
+                  <div className="properties-grid">
+                    {filteredProperties.map((property, index) => (
+                      <motion.div
+                        key={property._id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.1 + index * 0.05 }}
+                      >
+                        <Card padding="lg" hoverable className="property-card">
+                          <div className="property-header">
+                            <div className="property-image">
+                              {property.images && property.images.length > 0 ? (
+                                <img
+                                  src={`http://localhost:4000${property.images[0]}`}
+                                  alt={property.title}
+                                />
+                              ) : (
+                                <HiOutlinePhotograph size={32} />
+                              )}
+                            </div>
+                            <div className="property-badge">
+                              <Badge variant={property.isAvailable ? 'success' : 'warning'}>
+                                {property.isAvailable ? 'Available' : 'Booked'}
+                              </Badge>
+                            </div>
+                          </div>
+
+                          <div className="property-body">
+                            <h3 className="property-title">{property.title}</h3>
+
+                            {property.location && (
+                              <p className="property-location">
+                                <HiOutlineLocationMarker size={16} />
+                                {property.location}
+                              </p>
+                            )}
+
+                            <p className="property-description">
+                              {property.description || 'No description available'}
+                            </p>
+
+                            <div className="property-rent">
+                              <HiOutlineCurrencyRupee size={18} />
+                              <span className="rent-amount">₹{property.rent?.toLocaleString()}</span>
+                              <span className="rent-period">/month</span>
+                            </div>
+
+                            {property.amenities?.length > 0 && (
+                              <div className="property-tags">
+                                <HiOutlineWifi size={14} />
+                                {property.amenities.slice(0, 3).map((amenity, i) => (
+                                  <span key={i} className="tag">{amenity}</span>
+                                ))}
+                                {property.amenities.length > 3 && (
+                                  <span className="tag more">+{property.amenities.length - 3}</span>
+                                )}
+                              </div>
+                            )}
+
+                            {property.meals?.length > 0 && (
+                              <div className="property-tags meals">
+                                <HiOutlineCake size={14} />
+                                {property.meals.map((meal, i) => (
+                                  <span key={i} className="tag">{meal}</span>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Mini Map Preview */}
+                            {property.coordinates?.lat && property.coordinates?.lng && (
+                              <div className="property-mini-map">
+                                <div className="mini-map-header">
+                                  <HiOutlineMap size={14} />
+                                  <span>Location on Map</span>
+                                </div>
+                                <MapComponent
+                                  center={[property.coordinates.lat, property.coordinates.lng]}
+                                  zoom={14}
+                                  markers={[{
+                                    id: property._id,
+                                    lat: property.coordinates.lat,
+                                    lng: property.coordinates.lng,
+                                    title: property.title,
+                                  }]}
+                                  height="120px"
+                                  interactive={false}
+                                />
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="property-actions">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              leftIcon={<HiOutlinePencil size={16} />}
+                              onClick={() => openEditModal(property)}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              leftIcon={<HiOutlineUsers size={16} />}
+                              onClick={() => openRoomsModal(property)}
+                            >
+                              Manage Rooms
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              leftIcon={<HiOutlineTrash size={16} />}
+                              onClick={() => openDeleteModal(property)}
+                              className="delete-btn"
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </Card>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            )}
 
         {/* Chat Modal */}
         {selectedChatData && (
@@ -1772,6 +1844,7 @@ const OwnerDashboard = () => {
             property={selectedChatData.property}
             ownerId={selectedChatData.ownerId}
             ownerName={selectedChatData.ownerName}
+            type={selectedChatData.type || 'property'}
           />
         )}
 
@@ -2014,7 +2087,7 @@ const OwnerDashboard = () => {
                       <span className="upload-hint">Min 3, Max 6 images • JPEG, PNG, WebP • Max 5MB each</span>
                     </label>
                   </div>
-                  
+
                   {imagePreviews.length > 0 && (
                     <div className="image-previews">
                       {imagePreviews.map((preview, index) => (
@@ -2031,7 +2104,7 @@ const OwnerDashboard = () => {
                       ))}
                     </div>
                   )}
-                  
+
                   {selectedImages.length < 3 && (
                     <span className="input-hint error-hint">
                       Please upload at least {3 - selectedImages.length} more image{3 - selectedImages.length > 1 ? 's' : ''}
@@ -2053,88 +2126,88 @@ const OwnerDashboard = () => {
         )}
       </AnimatePresence>
 
-        {/* Rooms Modal */}
-        {roomsModalOpen && currentRoomProperty && (
-          <div className="modal-overlay" onClick={() => setRoomsModalOpen(false)}>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="modal"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="modal-header">
-                <h2>Rooms for {currentRoomProperty.title}</h2>
-                <button className="close-btn" onClick={() => setRoomsModalOpen(false)}>
-                  <HiOutlineX size={24} />
-                </button>
-              </div>
+      {/* Rooms Modal */}
+      {roomsModalOpen && currentRoomProperty && (
+        <div className="modal-overlay" onClick={() => setRoomsModalOpen(false)}>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            className="modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h2>Rooms for {currentRoomProperty.title}</h2>
+              <button className="close-btn" onClick={() => setRoomsModalOpen(false)}>
+                <HiOutlineX size={24} />
+              </button>
+            </div>
 
-              <div className="modal-body">
-                <div className="rooms-list">
-                  {roomsLoading ? (
-                    <Loading size="md" text="Loading rooms..." />
-                  ) : roomsForProperty.length === 0 ? (
-                    <EmptyState title="No rooms yet" description="Add rooms for this property to enable room-level bookings." />
-                  ) : (
-                    roomsForProperty.map(r => (
-                      <Card key={r._id} padding="sm" className="room-card">
-                        <div className="room-row">
-                          <div>
-                            <strong>{r.roomName || r.roomNumber || r.roomType}</strong>
-                            <div>Type: {r.roomType} • Max: {r.maxOccupancy}</div>
-                          </div>
-                          <div>
-                            <div>Available: {r.availableRooms}/{r.totalRooms}</div>
-                            <div>Price per room: ₹{r.pricePerRoom || 0}</div>
-                          </div>
-                          <div className="room-actions">
-                            <Button variant="outline" size="sm" onClick={() => handleEditRoom(r)}>Edit</Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDeleteRoom(r)}>Delete</Button>
-                          </div>
+            <div className="modal-body">
+              <div className="rooms-list">
+                {roomsLoading ? (
+                  <Loading size="md" text="Loading rooms..." />
+                ) : roomsForProperty.length === 0 ? (
+                  <EmptyState title="No rooms yet" description="Add rooms for this property to enable room-level bookings." />
+                ) : (
+                  roomsForProperty.map(r => (
+                    <Card key={r._id} padding="sm" className="room-card">
+                      <div className="room-row">
+                        <div>
+                          <strong>{r.roomName || r.roomNumber || r.roomType}</strong>
+                          <div>Type: {r.roomType} • Max: {r.maxOccupancy}</div>
                         </div>
-                      </Card>
-                    ))
-                  )}
-                </div>
-
-                <div className="add-room-form">
-                  <h3>Add Room</h3>
-                  <form onSubmit={handleAddRoom}>
-                    <div className="form-grid">
-                      <Input label="Room Name" name="roomName" value={roomForm.roomName} onChange={handleRoomInputChange} />
-                      <Input label="Room Number" name="roomNumber" value={roomForm.roomNumber} onChange={handleRoomInputChange} />
-                      <label>Room Type
-                        <select name="roomType" value={roomForm.roomType} onChange={handleRoomInputChange}>
-                          <option value="single">Single</option>
-                          <option value="double">Double</option>
-                          <option value="triple">Triple</option>
-                          <option value="dorm">Dorm</option>
-                        </select>
-                      </label>
-                      <Input label="Max Occupancy" name="maxOccupancy" type="number" value={roomForm.maxOccupancy} onChange={handleRoomInputChange} />
-                      <Input label="Total Rooms" name="totalRooms" type="number" value={roomForm.totalRooms} onChange={handleRoomInputChange} />
-                      <Input label="Available Rooms" name="availableRooms" type="number" value={roomForm.availableRooms} onChange={handleRoomInputChange} />
-                      <Input label="Price per Bed" name="pricePerBed" type="number" value={roomForm.pricePerBed} onChange={handleRoomInputChange} />
-                      <Input label="Price per Room" name="pricePerRoom" type="number" value={roomForm.pricePerRoom} onChange={handleRoomInputChange} />
-                      <label>Gender Preference
-                        <select name="genderPreference" value={roomForm.genderPreference} onChange={handleRoomInputChange}>
-                          <option value="any">Any</option>
-                          <option value="male">Male</option>
-                          <option value="female">Female</option>
-                        </select>
-                      </label>
-                    </div>
-                    <div className="modal-actions">
-                      <Button variant="secondary" onClick={() => setRoomsModalOpen(false)}>Close</Button>
-                      <Button type="submit" variant="primary" isLoading={roomsLoading}>Add Room</Button>
-                    </div>
-                  </form>
-                </div>
+                        <div>
+                          <div>Available: {r.availableRooms}/{r.totalRooms}</div>
+                          <div>Price per room: ₹{r.pricePerRoom || 0}</div>
+                        </div>
+                        <div className="room-actions">
+                          <Button variant="outline" size="sm" onClick={() => handleEditRoom(r)}>Edit</Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDeleteRoom(r)}>Delete</Button>
+                        </div>
+                      </div>
+                    </Card>
+                  ))
+                )}
               </div>
-            </motion.div>
-          </div>
-        )}
+
+              <div className="add-room-form">
+                <h3>Add Room</h3>
+                <form onSubmit={handleAddRoom}>
+                  <div className="form-grid">
+                    <Input label="Room Name" name="roomName" value={roomForm.roomName} onChange={handleRoomInputChange} />
+                    <Input label="Room Number" name="roomNumber" value={roomForm.roomNumber} onChange={handleRoomInputChange} />
+                    <label>Room Type
+                      <select name="roomType" value={roomForm.roomType} onChange={handleRoomInputChange}>
+                        <option value="single">Single</option>
+                        <option value="double">Double</option>
+                        <option value="triple">Triple</option>
+                        <option value="dorm">Dorm</option>
+                      </select>
+                    </label>
+                    <Input label="Max Occupancy" name="maxOccupancy" type="number" value={roomForm.maxOccupancy} onChange={handleRoomInputChange} />
+                    <Input label="Total Rooms" name="totalRooms" type="number" value={roomForm.totalRooms} onChange={handleRoomInputChange} />
+                    <Input label="Available Rooms" name="availableRooms" type="number" value={roomForm.availableRooms} onChange={handleRoomInputChange} />
+                    <Input label="Price per Bed" name="pricePerBed" type="number" value={roomForm.pricePerBed} onChange={handleRoomInputChange} />
+                    <Input label="Price per Room" name="pricePerRoom" type="number" value={roomForm.pricePerRoom} onChange={handleRoomInputChange} />
+                    <label>Gender Preference
+                      <select name="genderPreference" value={roomForm.genderPreference} onChange={handleRoomInputChange}>
+                        <option value="any">Any</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div className="modal-actions">
+                    <Button variant="secondary" onClick={() => setRoomsModalOpen(false)}>Close</Button>
+                    <Button type="submit" variant="primary" isLoading={roomsLoading}>Add Room</Button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Edit Property Modal */}
       <AnimatePresence>
@@ -2452,16 +2525,16 @@ const OwnerDashboard = () => {
 
               <div className="modal-actions">
                 <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', gap: '1rem', padding: '1rem 0 0 0', background: 'inherit', position: 'sticky', bottom: 0, zIndex: 10 }}>
-                  <Button 
-                    variant="secondary" 
+                  <Button
+                    variant="secondary"
                     onClick={() => setShowAIModal(false)}
                     style={{ minWidth: '120px', fontWeight: 500 }}
                   >
                     Cancel
                   </Button>
-                  <Button 
-                    variant="primary" 
-                    onClick={generateAIDescription} 
+                  <Button
+                    variant="primary"
+                    onClick={generateAIDescription}
                     isLoading={aiGenerating}
                     disabled={!aiFormData.location || !aiFormData.rent}
                     style={{ minWidth: '180px', fontWeight: 600, fontSize: '1rem', boxShadow: '0 2px 8px rgba(102,126,234,0.15)' }}
@@ -2504,7 +2577,7 @@ const OwnerDashboard = () => {
                     placeholder="e.g., Mom's Kitchen Tiffin"
                     required
                   />
-                  
+
                   <Input
                     label="Contact Number"
                     name="contactNumber"
@@ -2657,10 +2730,40 @@ const OwnerDashboard = () => {
                   </div>
                 </div>
 
+                <div className="form-group">
+                  <label>Daily Pricing (₹)</label>
+                  <div className="pricing-grid">
+                    <Input
+                      label="Breakfast"
+                      name="pricing.daily.breakfast"
+                      type="number"
+                      value={messFormData.pricing?.daily?.breakfast || ''}
+                      onChange={handleMessInputChange}
+                      placeholder="e.g., 50"
+                    />
+                    <Input
+                      label="Lunch"
+                      name="pricing.daily.lunch"
+                      type="number"
+                      value={messFormData.pricing?.daily?.lunch || ''}
+                      onChange={handleMessInputChange}
+                      placeholder="e.g., 70"
+                    />
+                    <Input
+                      label="Dinner"
+                      name="pricing.daily.dinner"
+                      type="number"
+                      value={messFormData.pricing?.daily?.dinner || ''}
+                      onChange={handleMessInputChange}
+                      placeholder="e.g., 70"
+                    />
+                  </div>
+                </div>
+
                 {/* Image Upload Section */}
                 <div className="form-group">
                   <label>Photos (Max 5)</label>
-                  <div 
+                  <div
                     className="image-upload-area"
                     style={{
                       border: '2px dashed var(--border-color)',
@@ -2689,7 +2792,7 @@ const OwnerDashboard = () => {
                       {messImages.length}/5 photos selected
                     </p>
                   </div>
-                  
+
                   {messImagePreviews.length > 0 && (
                     <div style={{
                       display: 'grid',
@@ -2697,17 +2800,17 @@ const OwnerDashboard = () => {
                       gap: '8px'
                     }}>
                       {messImagePreviews.map((preview, index) => (
-                        <div 
-                          key={index} 
-                          style={{ 
+                        <div
+                          key={index}
+                          style={{
                             position: 'relative',
                             aspectRatio: '1',
                             borderRadius: '8px',
                             overflow: 'hidden'
                           }}
                         >
-                          <img 
-                            src={preview} 
+                          <img
+                            src={preview}
                             alt={`Preview ${index + 1}`}
                             style={{
                               width: '100%',
@@ -2791,7 +2894,7 @@ const OwnerDashboard = () => {
                     placeholder="e.g., Mom's Kitchen Tiffin"
                     required
                   />
-                  
+
                   <Input
                     label="Contact Number"
                     name="contactNumber"
@@ -2940,6 +3043,36 @@ const OwnerDashboard = () => {
                       value={messFormData.pricing.monthly.fullDay}
                       onChange={handleMessInputChange}
                       placeholder="e.g., 3500"
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Daily Pricing (₹)</label>
+                  <div className="pricing-grid">
+                    <Input
+                      label="Breakfast"
+                      name="pricing.daily.breakfast"
+                      type="number"
+                      value={messFormData.pricing?.daily?.breakfast || ''}
+                      onChange={handleMessInputChange}
+                      placeholder="e.g., 50"
+                    />
+                    <Input
+                      label="Lunch"
+                      name="pricing.daily.lunch"
+                      type="number"
+                      value={messFormData.pricing?.daily?.lunch || ''}
+                      onChange={handleMessInputChange}
+                      placeholder="e.g., 70"
+                    />
+                    <Input
+                      label="Dinner"
+                      name="pricing.daily.dinner"
+                      type="number"
+                      value={messFormData.pricing?.daily?.dinner || ''}
+                      onChange={handleMessInputChange}
+                      placeholder="e.g., 70"
                     />
                   </div>
                 </div>

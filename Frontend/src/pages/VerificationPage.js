@@ -19,6 +19,8 @@ import {
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import documentService from '../services/documentService';
+import aadhaarService from '../services/aadhaarService';
+import verificationService from '../services/verificationService';
 
 const VerificationPage = () => {
   const { user } = useAuth();
@@ -62,7 +64,6 @@ const VerificationPage = () => {
     const types = {
       identity: user?.role === 'owner' 
         ? [
-            { value: 'aadhar', label: 'Aadhar Card' },
             { value: 'pan', label: 'PAN Card' },
             { value: 'passport', label: 'Passport' },
             { value: 'driving_license', label: 'Driving License' }
@@ -70,7 +71,6 @@ const VerificationPage = () => {
         : [
             { value: 'student_id', label: '⭐ Student ID Card' },
             { value: 'college_id', label: '⭐ College/University ID' },
-            { value: 'aadhar', label: 'Aadhar Card' },
             { value: 'pan', label: 'PAN Card' },
             { value: 'passport', label: 'Passport' }
           ],
@@ -158,17 +158,109 @@ const VerificationPage = () => {
   };
 
   const handleViewDocument = (document) => {
-    const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:4000';
-    window.open(`${baseUrl}${document.filePath}`, '_blank');
+    // Fetch file as blob using authenticated API then open in new tab
+    (async () => {
+      try {
+        const blob = await documentService.downloadDocument(document._id);
+        const url = window.URL.createObjectURL(new Blob([blob]));
+        const newWin = window.open(url, '_blank');
+        if (!newWin) {
+          // fallback: navigate
+          window.location.href = url;
+        }
+        // release object URL after some time
+        setTimeout(() => window.URL.revokeObjectURL(url), 10000);
+      } catch (err) {
+        toast.error(err.response?.data?.message || 'Failed to download document');
+      }
+    })();
   };
 
   const getDocumentsByCategory = (category) => {
     const categoryMap = {
-      identity: ['student_id', 'college_id', 'aadhar', 'pan', 'passport', 'driving_license'],
+      identity: ['student_id', 'college_id', 'pan', 'passport', 'driving_license'],
       address: ['utility_bill', 'bank_statement', 'rent_agreement'],
       property: ['property_deed', 'property_tax', 'ownership_certificate', 'noc']
     };
     return documents.filter(doc => categoryMap[category]?.includes(doc.documentType));
+  };
+
+  // Aadhaar modal state & flows
+  const [showAadhaarModal, setShowAadhaarModal] = useState(false);
+  const [aadhaarNumber, setAadhaarNumber] = useState('');
+  const [requestId, setRequestId] = useState(null);
+  const [otp, setOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [aadhaarLoading, setAadhaarLoading] = useState(false);
+  const [otpCountdown, setOtpCountdown] = useState(0);
+  const otpLifetime = 5 * 60; // 5 minutes
+
+  // College email verification modal
+  const [showCollegeModal, setShowCollegeModal] = useState(false);
+  const [collegeEmail, setCollegeEmail] = useState('');
+  const [collegeLoading, setCollegeLoading] = useState(false);
+
+  useEffect(() => {
+    let timer = null;
+    if (otpCountdown > 0) {
+      timer = setInterval(() => setOtpCountdown(c => c - 1), 1000);
+    }
+    return () => { if (timer) clearInterval(timer); };
+  }, [otpCountdown]);
+
+  const sendAadhaarOtp = async () => {
+    if (!/^[0-9]{12}$/.test(aadhaarNumber)) {
+      toast.error('Please enter a valid 12-digit Aadhaar number');
+      return;
+    }
+    setAadhaarLoading(true);
+    try {
+      const res = await aadhaarService.requestOtp(aadhaarNumber);
+      setRequestId(res.requestId);
+      setOtpSent(true);
+      setOtpCountdown(otpLifetime);
+      toast.success('OTP sent to your Aadhaar-registered mobile (mock)');
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'Failed to request Aadhaar OTP');
+    } finally {
+      setAadhaarLoading(false);
+    }
+  };
+
+  const sendCollegeVerification = async () => {
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(collegeEmail)) {
+      toast.error('Enter a valid email');
+      return;
+    }
+    setCollegeLoading(true);
+    try {
+      await verificationService.requestCollegeEmail(collegeEmail);
+      toast.success('Verification email sent — check your inbox');
+      setShowCollegeModal(false);
+      setCollegeEmail('');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send verification email');
+    } finally {
+      setCollegeLoading(false);
+    }
+  };
+
+  const verifyAadhaarOtp = async () => {
+    if (!requestId) return toast.error('No OTP request found');
+    if (!otp || otp.length < 4) return toast.error('Enter the OTP');
+    setAadhaarLoading(true);
+    try {
+      await aadhaarService.verifyOtp(requestId, otp);
+      toast.success('Aadhaar verified successfully');
+      setShowAadhaarModal(false);
+      // clear sensitive local state
+      setAadhaarNumber(''); setOtp(''); setRequestId(null); setOtpSent(false); setOtpCountdown(0);
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'OTP verification failed');
+    } finally {
+      setAadhaarLoading(false);
+    }
   };
 
   const getTabs = () => {
@@ -300,6 +392,46 @@ const VerificationPage = () => {
             <FiRefreshCw size={16} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
             Refresh
           </button>
+          {!user?.aadhaarVerification?.verified && (
+            <button
+              onClick={() => setShowAadhaarModal(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 20px',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-light)',
+                borderRadius: '12px',
+                color: 'var(--text-primary)',
+                fontSize: '0.875rem',
+                fontWeight: '500',
+                cursor: 'pointer'
+              }}
+            >
+              Verify Aadhaar
+            </button>
+          )}
+            {user?.verificationState !== 'verified_student' && (
+              <button
+                onClick={() => setShowCollegeModal(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 20px',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  borderRadius: '12px',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  cursor: 'pointer'
+                }}
+              >
+                Verify College Email
+              </button>
+            )}
         </div>
 
         {/* Status Cards */}
@@ -369,6 +501,84 @@ const VerificationPage = () => {
               </p>
             </div>
           </motion.div>
+        )}
+        )}
+
+        {/* Aadhaar Modal */}
+        {showAadhaarModal && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: '420px', borderRadius: '12px', background: 'var(--bg-card)', padding: '20px', boxShadow: '0 12px 40px rgba(2,6,23,0.3)' }}>
+              <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 700 }}>Aadhaar OTP Verification</h3>
+              <p style={{ marginTop: '8px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                We will not store your Aadhaar number. This is an OTP-only verification.
+              </p>
+
+              <div style={{ marginTop: '12px' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Aadhaar Number</label>
+                <input
+                  value={aadhaarNumber}
+                  onChange={(e) => setAadhaarNumber(e.target.value.replace(/[^0-9]/g, '').slice(0,12))}
+                  placeholder="Enter 12-digit Aadhaar"
+                  disabled={otpSent}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', fontSize: '0.95rem' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', marginTop: '12px', alignItems: 'center' }}>
+                {!otpSent ? (
+                  <button onClick={sendAadhaarOtp} disabled={aadhaarLoading} style={{ flex: 1, padding: '10px', borderRadius: '8px', background: 'var(--accent-gradient)', color: 'white', border: 'none', cursor: 'pointer' }}>
+                    {aadhaarLoading ? 'Sending...' : 'Send OTP'}
+                  </button>
+                ) : (
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 600 }}>OTP Sent</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{otpCountdown > 0 ? `Expires in ${otpCountdown}s` : 'OTP expired'}</div>
+                  </div>
+                )}
+                <button onClick={() => { setShowAadhaarModal(false); setAadhaarNumber(''); setOtp(''); setRequestId(null); setOtpSent(false); setOtpCountdown(0); }} style={{ padding: '10px 12px', borderRadius: '8px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', cursor: 'pointer' }}>Close</button>
+              </div>
+
+              {otpSent && (
+                <div style={{ marginTop: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Enter OTP</label>
+                  <input value={otp} onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, '').slice(0,6))} placeholder="123456" style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', fontSize: '0.95rem' }} />
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                    <button onClick={verifyAadhaarOtp} disabled={aadhaarLoading} style={{ flex: 1, padding: '10px', borderRadius: '8px', background: 'var(--accent-gradient)', color: 'white', border: 'none', cursor: 'pointer' }}>{aadhaarLoading ? 'Verifying...' : 'Verify OTP'}</button>
+                    <button onClick={sendAadhaarOtp} disabled={aadhaarLoading || otpCountdown > 0} style={{ padding: '10px', borderRadius: '8px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', cursor: 'pointer' }}>Resend</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* College Email Modal */}
+        {showCollegeModal && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: '420px', borderRadius: '12px', background: 'var(--bg-card)', padding: '20px', boxShadow: '0 12px 40px rgba(2,6,23,0.3)' }}>
+              <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 700 }}>College Email Verification</h3>
+              <p style={{ marginTop: '8px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                We'll send a verification link to your college/university email. We won't store this beyond verification records.
+              </p>
+
+              <div style={{ marginTop: '12px' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>College Email</label>
+                <input
+                  value={collegeEmail}
+                  onChange={(e) => setCollegeEmail(e.target.value)}
+                  placeholder="you@college.edu"
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', fontSize: '0.95rem' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', marginTop: '12px', alignItems: 'center' }}>
+                <button onClick={sendCollegeVerification} disabled={collegeLoading} style={{ flex: 1, padding: '10px', borderRadius: '8px', background: 'var(--accent-gradient)', color: 'white', border: 'none', cursor: 'pointer' }}>
+                  {collegeLoading ? 'Sending...' : 'Send Verification'}
+                </button>
+                <button onClick={() => { setShowCollegeModal(false); setCollegeEmail(''); }} style={{ padding: '10px 12px', borderRadius: '8px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', cursor: 'pointer' }}>Close</button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Main Card */}

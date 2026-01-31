@@ -38,27 +38,46 @@ const StudentDashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [messSubscriptions, setMessSubscriptions] = useState([]);
   const [messLoading, setMessLoading] = useState(true);
-    // Fetch user's mess subscriptions
-    const fetchMessSubscriptions = useCallback(async () => {
-      try {
-        setMessLoading(true);
-        const response = await messService.getMySubscriptions();
-        setMessSubscriptions(response.data || []);
-      } catch (err) {
-        console.error('Failed to fetch mess subscriptions:', err);
-        toast.error('Failed to load mess subscriptions');
-      } finally {
-        setMessLoading(false);
-      }
-    }, []);
+  // Fetch user's mess subscriptions
+  const fetchMessSubscriptions = useCallback(async () => {
+    try {
+      setMessLoading(true);
+      const response = await messService.getMySubscriptions();
+      console.log('Fetched mess subscriptions:', response);
+      const allSubscriptions = response.data || response || [];
+      const activeOrPending = allSubscriptions.filter(sub => ['Active', 'Pending'].includes(sub.status));
+      setMessSubscriptions(activeOrPending);
+    } catch (err) {
+      console.error('Failed to fetch mess subscriptions:', err);
+      toast.error('Failed to load mess subscriptions');
+    } finally {
+      setMessLoading(false);
+    }
+  }, []);
+
+  const handleCancelSubscription = async (subscriptionId) => {
+    if (!window.confirm('Are you sure you want to cancel this subscription?')) return;
+    try {
+      await messService.cancelSubscription(subscriptionId);
+      toast.success('Subscription cancelled successfully');
+      fetchMessSubscriptions();
+    } catch (err) {
+      console.error('Failed to cancel subscription:', err);
+      toast.error(err.response?.data?.error || 'Failed to cancel subscription');
+    }
+  };
 
   const [loading, setLoading] = useState(true);
   const [chatModalOpen, setChatModalOpen] = useState(false);
   const [selectedChatData, setSelectedChatData] = useState(null);
+
+
+  // Review Modal State
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [reviewMessSubscription, setReviewMessSubscription] = useState(null);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [leaveReason, setLeaveReason] = useState('');
   const [leavingRoom, setLeavingRoom] = useState(false);
-  const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [selectedBookingForReview, setSelectedBookingForReview] = useState(null);
   const [reviewedBookings, setReviewedBookings] = useState(new Set());
   const [verificationStatus, setVerificationStatus] = useState(null);
@@ -128,16 +147,72 @@ const StudentDashboard = () => {
     // In production, this would trigger actual emergency services
   };
 
-  const handleOpenChat = (booking) => {
-    if (booking?.property?.owner) {
-      setSelectedChatData({
-        property: booking.property,
-        ownerId: booking.property.owner._id,
-        ownerName: booking.property.owner.name
-      });
-      setChatModalOpen(true);
+  const handleOpenReview = async (subscription) => {
+    console.log('handleOpenReview called with:', subscription);
+    console.log('Using reviewService.canReviewMess (updated)');
+    try {
+      if (!subscription?._id) {
+        console.error('Subscription ID is missing');
+        toast.error('Invalid subscription data');
+        return;
+      }
+      const eligibility = await reviewService.canReviewMess(subscription._id);
+      console.log('Eligibility result:', eligibility);
+      if (eligibility.canReview) {
+        setReviewMessSubscription(subscription);
+        setReviewModalOpen(true);
+      } else {
+        if (eligibility.review) {
+          toast.error('You have already reviewed this subscription');
+        } else {
+          toast.error(eligibility.message || 'You cannot review this subscription yet');
+        }
+      }
+    } catch (error) {
+      console.error('Error checking review eligibility:', error);
+      if (error.response) {
+        console.error('Error response:', error.response.status, error.response.data);
+        const errorMsg = typeof error.response.data === 'string'
+          ? `Status ${error.response.status}: ${error.response.data.substring(0, 50)}...`
+          : JSON.stringify(error.response.data);
+        toast.error(`Debug Error: ${errorMsg}`);
+      } else {
+        toast.error(`Debug Error: ${error.message}`);
+      }
+      toast.error('Failed to check review eligibility');
+    }
+  };
+
+  const handleOpenChat = (item, type = 'property') => {
+    if (type === 'mess') {
+      console.log('Opening chat for mess item:', item);
+      console.log('Mess owner data:', item?.mess?.owner);
+
+      const owner = item?.mess?.owner;
+      if (owner) {
+        setSelectedChatData({
+          property: item.mess,
+          ownerId: owner._id || owner, // Handle both object and ID string
+          ownerName: owner.name || 'Mess Owner',
+          type: 'mess'
+        });
+        setChatModalOpen(true);
+      } else {
+        toast.error('Owner information not available');
+      }
     } else {
-      toast.error('Owner information not available');
+      // Property booking
+      if (item?.property?.owner) {
+        setSelectedChatData({
+          property: item.property,
+          ownerId: item.property.owner._id,
+          ownerName: item.property.owner.name,
+          type: 'property'
+        });
+        setChatModalOpen(true);
+      } else {
+        toast.error('Owner information not available');
+      }
     }
   };
 
@@ -238,7 +313,7 @@ const StudentDashboard = () => {
             <h1>Welcome back, {student || 'Student'}! 👋</h1>
             <p>Here's an overview of your stays and bookings.</p>
           </div>
-          
+
           {/* SOS Button - Always visible */}
           <Button
             variant="danger"
@@ -318,45 +393,98 @@ const StudentDashboard = () => {
                   />
                 ) : (
                   <div className="mess-subs-list">
-                    {messSubscriptions.map((sub, idx) => (
-                      <motion.div
-                        key={sub._id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: idx * 0.04 }}
-                        className="mess-sub-item"
-                      >
-                        <div className="mess-sub-info">
-                          <h4>{sub.mess?.name || 'Mess Service'}</h4>
-                          <p>
-                            <HiOutlineLocationMarker size={14} />{' '}
-                            {sub.mess?.location || 'Location'}
-                          </p>
-                          <div className="mess-sub-meta">
-                            <span className="meta-label">Plan:</span> {sub.plan}
-                            {sub.selectedMeals?.length > 0 && (
+                    {messSubscriptions.map((sub, idx) => {
+                      // Helper to format plan name
+                      const formatPlan = (plan) => {
+                        const plans = {
+                          'monthly-all': 'Monthly (All Meals)',
+                          'monthly-two': 'Monthly (2 Meals)',
+                          'monthly-one': 'Monthly (1 Meal)',
+                          'monthly-breakfast': 'Monthly (Breakfast Only)',
+                          'monthly-lunch': 'Monthly (Lunch Only)',
+                          'monthly-dinner': 'Monthly (Dinner Only)'
+                        };
+                        return plans[plan] || plan;
+                      };
+
+                      // Helper to capitalize words
+                      const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
+
+                      return (
+                        <motion.div
+                          key={sub._id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: idx * 0.04 }}
+                          className="mess-sub-item"
+                        >
+                          <div className="mess-sub-info">
+                            <h4>{sub.mess?.name || 'Mess Service'}</h4>
+                            <p>
+                              <HiOutlineLocationMarker size={14} />{' '}
+                              {sub.mess?.location || 'Location'}
+                            </p>
+                            <div className="mess-sub-meta">
+                              <span className="meta-label">Plan:</span> {formatPlan(sub.plan)}
+                              {sub.selectedMeals?.length > 0 && (
+                                <>
+                                  {' | '}<span className="meta-label">Meals:</span> {sub.selectedMeals.map(capitalize).join(', ')}
+                                </>
+                              )}
+                            </div>
+                            <div className="mess-sub-meta">
+                              <span className="meta-label">Status:</span>{' '}
+                              <Badge variant={sub.status === 'Active' ? 'success' : sub.status === 'Pending' ? 'warning' : 'gray'}>
+                                {sub.status}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div className="mess-sub-actions" style={{ gap: '0.5rem', display: 'flex' }}>
+                            {sub.status === 'Active' && (
                               <>
-                                {' | '}<span className="meta-label">Meals:</span> {sub.selectedMeals.join(', ')}
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  leftIcon={<HiOutlineChatAlt2 size={16} />}
+                                  onClick={() => handleOpenChat(sub, 'mess')}
+                                >
+                                  Chat
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  leftIcon={<HiOutlineStar size={16} />}
+                                  onClick={() => handleOpenReview(sub)}
+                                >
+                                  Rate
+                                </Button>
+                                <Button
+                                  variant="danger"
+                                  size="sm"
+                                  onClick={() => handleCancelSubscription(sub._id)}
+                                >
+                                  Cancel
+                                </Button>
                               </>
                             )}
+                            {sub.status === 'Pending' && (
+                              <Button
+                                variant="danger"
+                                size="sm"
+                                onClick={() => handleCancelSubscription(sub._id)}
+                              >
+                                Cancel Request
+                              </Button>
+                            )}
                           </div>
-                          <div className="mess-sub-meta">
-                            <span className="meta-label">Status:</span>{' '}
-                            <Badge variant={sub.status === 'Active' ? 'success' : sub.status === 'Pending' ? 'warning' : 'gray'}>
-                              {sub.status}
-                            </Badge>
-                          </div>
-                        </div>
-                        <div className="mess-sub-actions">
-                          {/* Optionally add cancel button or details link */}
-                        </div>
-                      </motion.div>
-                    ))}
+                        </motion.div>
+                      )
+                    })}
                   </div>
                 )}
               </Card>
             </motion.div>
-                  <style>{`
+            <style>{`
                     .mess-subs-list {
                       display: flex;
                       flex-direction: column;
@@ -410,7 +538,7 @@ const StudentDashboard = () => {
                   <div className="stay-details">
                     <div className="stay-property">
                       <img
-                        src={activeBooking.property?.images?.[0] 
+                        src={activeBooking.property?.images?.[0]
                           ? `http://localhost:4000${activeBooking.property.images[0]}`
                           : "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=150&h=100&fit=crop"}
                         alt={activeBooking.property?.title}
@@ -446,22 +574,22 @@ const StudentDashboard = () => {
                     </div>
 
                     <div className="stay-actions">
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         leftIcon={<HiOutlineChatAlt2 size={18} />}
                         onClick={() => handleOpenChat(activeBooking)}
                       >
                         Chat with Owner
                       </Button>
-                      <Button 
-                        variant="secondary" 
+                      <Button
+                        variant="secondary"
                         leftIcon={<HiOutlineStar size={18} />}
                         onClick={() => toast('You can leave a review after completing your stay', { icon: '📝' })}
                       >
                         Leave Review
                       </Button>
-                      <Button 
-                        variant="danger" 
+                      <Button
+                        variant="danger"
                         leftIcon={<HiOutlineLogout size={18} />}
                         onClick={() => setShowLeaveModal(true)}
                       >
@@ -530,8 +658,8 @@ const StudentDashboard = () => {
                             ₹{booking.property?.rent?.toLocaleString() || 'N/A'}/mo
                           </span>
                           {booking.status === 'Pending' && (
-                            <Button 
-                              variant="ghost" 
+                            <Button
+                              variant="ghost"
                               size="sm"
                               onClick={() => handleCancelBooking(booking._id)}
                               className="cancel-btn"
@@ -540,8 +668,8 @@ const StudentDashboard = () => {
                             </Button>
                           )}
                           {booking.status === 'Completed' && !reviewedBookings.has(booking._id) && (
-                            <Button 
-                              variant="primary" 
+                            <Button
+                              variant="primary"
                               size="sm"
                               onClick={() => handleOpenReviewModal(booking)}
                               leftIcon={<HiOutlineStar size={14} />}
@@ -602,6 +730,15 @@ const StudentDashboard = () => {
                       <span className="stat-label">Active Stay</span>
                     </div>
                   </div>
+                  <div className="stat-item">
+                    <div className="stat-icon" style={{ backgroundColor: 'rgba(236, 72, 153, 0.1)', color: '#ec4899' }}>
+                      <HiOutlineClipboardList size={20} />
+                    </div>
+                    <div className="stat-content">
+                      <span className="stat-value">{messSubscriptions.length}</span>
+                      <span className="stat-label">Mess Plans</span>
+                    </div>
+                  </div>
                 </div>
               </Card>
             </motion.div>
@@ -644,13 +781,13 @@ const StudentDashboard = () => {
                   Safety First
                 </h3>
                 <p className="safety-text">
-                  In case of emergency, use the SOS button. We'll immediately alert 
+                  In case of emergency, use the SOS button. We'll immediately alert
                   local authorities and your emergency contacts.
                 </p>
-                <Button 
-                  variant="danger" 
-                  size="sm" 
-                  fullWidth 
+                <Button
+                  variant="danger"
+                  size="sm"
+                  fullWidth
                   onClick={handleSOS}
                   leftIcon={<HiOutlinePhone size={16} />}
                 >
@@ -1141,6 +1278,7 @@ const StudentDashboard = () => {
           property={selectedChatData.property}
           ownerId={selectedChatData.ownerId}
           ownerName={selectedChatData.ownerName}
+          type={selectedChatData.type || 'property'}
         />
       )}
 
@@ -1185,7 +1323,7 @@ const StudentDashboard = () => {
               </div>
               <div className="leave-modal-body">
                 <p>
-                  Are you sure you want to leave this room? This action will end your current stay 
+                  Are you sure you want to leave this room? This action will end your current stay
                   and mark the property as available for other students.
                 </p>
                 <textarea
@@ -1199,8 +1337,8 @@ const StudentDashboard = () => {
                 <Button variant="outline" onClick={() => setShowLeaveModal(false)}>
                   Cancel
                 </Button>
-                <Button 
-                  variant="danger" 
+                <Button
+                  variant="danger"
                   onClick={handleLeaveRoom}
                   disabled={leavingRoom}
                 >
@@ -1211,6 +1349,17 @@ const StudentDashboard = () => {
           </motion.div>
         )}
       </AnimatePresence>
+      <ReviewModal
+        isOpen={reviewModalOpen}
+        onClose={() => {
+          setReviewModalOpen(false);
+          setReviewMessSubscription(null);
+        }}
+        messSubscription={reviewMessSubscription}
+        onReviewSubmitted={() => {
+          fetchMessSubscriptions(); // Refresh to potentially update UI
+        }}
+      />
     </div>
   );
 };

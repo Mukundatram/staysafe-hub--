@@ -21,13 +21,16 @@ import messService from '../../services/messService';
 import Loading from '../../components/ui/Loading';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
+import { ChatModal } from '../../components/chat';
+import { HiOutlineChatAlt2 } from 'react-icons/hi';
 import toast from 'react-hot-toast';
+import MessReviews from '../../components/mess/MessReviews';
 
 const MessDetailsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
-  
+
   const [mess, setMess] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -41,6 +44,23 @@ const MessDetailsPage = () => {
     deliveryPreference: 'pickup'
   });
   const [subscribing, setSubscribing] = useState(false);
+  const [showChatModal, setShowChatModal] = useState(false);
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
+
+  useEffect(() => {
+    const checkSubscription = async () => {
+      if (isAuthenticated) {
+        try {
+          const subs = await messService.getMySubscriptions();
+          const active = subs.some(s => ['Active', 'Pending'].includes(s.status));
+          setHasActiveSubscription(active);
+        } catch (err) {
+          console.error('Failed to check subscription status:', err);
+        }
+      }
+    };
+    checkSubscription();
+  }, [isAuthenticated]);
 
   const fetchMessDetails = useCallback(async () => {
     try {
@@ -74,10 +94,12 @@ const MessDetailsPage = () => {
       };
       await messService.subscribe(id, subscriptionPayload);
       setShowSubscribeModal(false);
-      toast.success('Subscription request sent successfully!');
-      fetchMessDetails();
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to subscribe');
+      toast.success('Subscription request sent successfully! Redirecting to dashboard...', { duration: 3000 });
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 1500);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to subscribe');
     } finally {
       setSubscribing(false);
     }
@@ -100,16 +122,33 @@ const MessDetailsPage = () => {
   const getMonthlyPrice = () => {
     const { selectedMeals, plan } = subscriptionData;
     if (!mess?.pricing) return 0;
-    
-    const pricing = plan === 'daily' ? mess.pricing.daily : mess.pricing.monthly;
-    if (!pricing) return 0;
-    
-    if (selectedMeals.length >= 3) {
-      return pricing.allMeals || pricing.fullDay || 0;
-    } else if (selectedMeals.length === 2) {
-      return pricing.twoMeals || 0;
+
+    if (plan === 'daily') {
+      // Daily pricing structure uses individual meal prices (breakfast, lunch, dinner)
+      const dailyPricing = mess.pricing.daily;
+      if (!dailyPricing) return 0;
+
+      // Sum up the prices for selected meals
+      let total = 0;
+      selectedMeals.forEach(meal => {
+        const mealLower = meal.toLowerCase();
+        if (dailyPricing[mealLower]) {
+          total += dailyPricing[mealLower];
+        }
+      });
+      return total;
     } else {
-      return pricing.oneMeal || 0;
+      // Monthly pricing structure uses oneMeal, twoMeals, allMeals
+      const monthlyPricing = mess.pricing.monthly;
+      if (!monthlyPricing) return 0;
+
+      if (selectedMeals.length >= 3) {
+        return monthlyPricing.allMeals || monthlyPricing.fullDay || 0;
+      } else if (selectedMeals.length === 2) {
+        return monthlyPricing.twoMeals || 0;
+      } else {
+        return monthlyPricing.oneMeal || 0;
+      }
     }
   };
 
@@ -117,7 +156,7 @@ const MessDetailsPage = () => {
   const getSubscriptionPlan = () => {
     const { selectedMeals, plan } = subscriptionData;
     const prefix = plan === 'monthly' ? 'monthly' : 'daily';
-    
+
     if (selectedMeals.length >= 3) {
       return `${prefix}-all`;
     } else if (selectedMeals.length === 2) {
@@ -248,7 +287,7 @@ const MessDetailsPage = () => {
                   </div>
                 </div>
                 <div className="action-buttons">
-                  <button 
+                  <button
                     className={`action-btn ${isSaved ? 'saved' : ''}`}
                     onClick={handleSave}
                   >
@@ -368,7 +407,7 @@ const MessDetailsPage = () => {
                     </button>
                   ))}
                 </div>
-                
+
                 <div className="tab-content">
                   {activeTab === 'menu' && (
                     <div className="menu-content">
@@ -407,13 +446,13 @@ const MessDetailsPage = () => {
                       )}
                     </div>
                   )}
-                  
+
                   {activeTab === 'weekly' && (
                     <div className="weekly-content">
                       <p style={{ color: 'var(--text-secondary)' }}>Weekly menu not available yet</p>
                     </div>
                   )}
-                  
+
                   {activeTab === 'pricing' && (
                     <div className="pricing-content">
                       {mess.pricing?.monthly && (
@@ -440,24 +479,26 @@ const MessDetailsPage = () => {
                           <h4>Daily Rates</h4>
                           <div className="pricing-rows">
                             <div className="pricing-row">
-                              <span>Per Meal</span>
-                              <span className="price">₹{mess.pricing.daily.perMeal || 'N/A'}</span>
+                              <span>Breakfast</span>
+                              <span className="price">₹{mess.pricing.daily.breakfast || 'N/A'}</span>
                             </div>
                             <div className="pricing-row">
-                              <span>Full Day</span>
-                              <span className="price">₹{mess.pricing.daily.fullDay || 'N/A'}</span>
+                              <span>Lunch</span>
+                              <span className="price">₹{mess.pricing.daily.lunch || 'N/A'}</span>
+                            </div>
+                            <div className="pricing-row">
+                              <span>Dinner</span>
+                              <span className="price">₹{mess.pricing.daily.dinner || 'N/A'}</span>
                             </div>
                           </div>
                         </div>
                       )}
                     </div>
                   )}
-                  
+
                   {activeTab === 'reviews' && (
                     <div className="reviews-content">
-                      <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '32px 0' }}>
-                        Reviews coming soon!
-                      </p>
+                      <MessReviews messId={id} />
                     </div>
                   )}
                 </div>
@@ -503,22 +544,31 @@ const MessDetailsPage = () => {
                   variant="primary"
                   size="lg"
                   fullWidth
-                  onClick={() => setShowSubscribeModal(true)}
+                  onClick={() => {
+                    if (hasActiveSubscription) {
+                      toast.error('You already have an active or pending subscription. Please cancel it before subscribing to a new mess.');
+                      return;
+                    }
+                    setShowSubscribeModal(true);
+                  }}
                   leftIcon={<HiOutlineCalendar size={20} />}
+                  disabled={hasActiveSubscription}
+                  style={hasActiveSubscription ? { opacity: 0.7, cursor: 'not-allowed' } : {}}
                 >
-                  Subscribe Now
+                  {hasActiveSubscription ? 'Subscription Active/Pending' : 'Subscribe Now'}
                 </Button>
                 <Button
                   variant="outline"
                   size="lg"
                   fullWidth
-                  leftIcon={<HiOutlinePhone size={20} />}
+                  leftIcon={<HiOutlineChatAlt2 size={20} />}
                   onClick={() => {
-                    if (mess.contactPhone || mess.contactNumber) {
-                      window.location.href = `tel:${mess.contactPhone || mess.contactNumber}`;
-                    } else {
-                      toast.error('Contact not available');
+                    if (!isAuthenticated) {
+                      toast.error('Please login to contact the owner');
+                      navigate('/login', { state: { from: `/mess/${id}` } });
+                      return;
                     }
+                    setShowChatModal(true);
                   }}
                 >
                   Contact Owner
@@ -534,6 +584,7 @@ const MessDetailsPage = () => {
         </div>
       </div>
 
+      {/* Subscribe Modal */}
       {/* Subscribe Modal */}
       <AnimatePresence>
         {showSubscribeModal && (
@@ -552,7 +603,7 @@ const MessDetailsPage = () => {
               onClick={(e) => e.stopPropagation()}
             >
               <h3>Subscribe to {mess.name}</h3>
-              
+
               <div className="modal-section">
                 <label>Plan Type</label>
                 <div className="option-grid">
@@ -567,7 +618,7 @@ const MessDetailsPage = () => {
                   ))}
                 </div>
               </div>
-              
+
               <div className="modal-section">
                 <label>Select Meals</label>
                 <div className="option-grid four-col">
@@ -589,7 +640,7 @@ const MessDetailsPage = () => {
                   ))}
                 </div>
               </div>
-              
+
               <div className="modal-section">
                 <label>Delivery Preference</label>
                 <div className="option-grid">
@@ -604,7 +655,7 @@ const MessDetailsPage = () => {
                   ))}
                 </div>
               </div>
-              
+
               <div className="price-summary">
                 <div className="summary-row">
                   <span>Selected Meals</span>
@@ -615,7 +666,7 @@ const MessDetailsPage = () => {
                   <span>₹{getMonthlyPrice()}/{subscriptionData.plan === 'monthly' ? 'month' : 'day'}</span>
                 </div>
               </div>
-              
+
               <div className="modal-actions">
                 <button onClick={() => setShowSubscribeModal(false)} className="btn-cancel">
                   Cancel
@@ -632,6 +683,15 @@ const MessDetailsPage = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ChatModal
+        isOpen={showChatModal}
+        onClose={() => setShowChatModal(false)}
+        property={mess}
+        ownerId={mess.owner?._id}
+        ownerName={mess.owner?.name || 'Mess Owner'}
+        type="mess"
+      />
 
       <style>{`
         .mess-details-page {

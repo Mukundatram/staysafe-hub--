@@ -13,7 +13,6 @@ import documentService from '../../services/documentService';
 const studentDocumentTypes = [
   { value: 'student_id', label: 'Student ID Card', category: 'identity', priority: true },
   { value: 'college_id', label: 'College/University ID', category: 'identity', priority: true },
-  { value: 'aadhar', label: 'Aadhar Card', category: 'identity' },
   { value: 'pan', label: 'PAN Card', category: 'identity' },
   { value: 'passport', label: 'Passport', category: 'identity' },
   { value: 'driving_license', label: 'Driving License', category: 'identity' },
@@ -30,7 +29,6 @@ const ownerDocumentTypes = [
   { value: 'ownership_certificate', label: 'Ownership Certificate', category: 'property' },
   { value: 'noc', label: 'NOC (No Objection Certificate)', category: 'property' },
   { value: 'encumbrance_certificate', label: 'Encumbrance Certificate', category: 'property' },
-  { value: 'aadhar', label: 'Aadhar Card', category: 'identity' },
   { value: 'pan', label: 'PAN Card', category: 'identity' },
   { value: 'passport', label: 'Passport', category: 'identity' },
   { value: 'driving_license', label: 'Driving License', category: 'identity' },

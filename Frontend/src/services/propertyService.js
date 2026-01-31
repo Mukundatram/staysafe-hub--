@@ -100,15 +100,33 @@ export const chatService = {
     return response.data;
   },
 
+  // Get messages for a mess conversation
+  getMessMessages: async (messId, userId) => {
+    const response = await api.get(`/chat/mess/${messId}/${userId}`);
+    return response.data;
+  },
+
   // Delete conversation messages for a property + other user
   deleteConversation: async (propertyId, otherUserId) => {
     const response = await api.delete(`/chat/${propertyId}/${otherUserId}`);
     return response.data;
   },
 
-  // Send a message
+  // Delete mess conversation
+  deleteMessConversation: async (messId, otherUserId) => {
+    const response = await api.delete(`/chat/mess/${messId}/${otherUserId}`);
+    return response.data;
+  },
+
+  // Send a message (property)
   sendMessage: async (receiverId, propertyId, content) => {
     const response = await api.post('/chat/send', { receiverId, propertyId, content });
+    return response.data;
+  },
+
+  // Send a mess message
+  sendMessMessage: async (receiverId, messId, content) => {
+    const response = await api.post('/chat/mess/send', { receiverId, messId, content });
     return response.data;
   },
 
@@ -131,7 +149,7 @@ export const ownerService = {
   // Add new property with images
   addProperty: async (propertyData, images) => {
     const formData = new FormData();
-    
+
     // Add text fields
     formData.append('title', propertyData.title);
     formData.append('description', propertyData.description || '');
@@ -140,7 +158,7 @@ export const ownerService = {
     formData.append('amenities', propertyData.amenities?.join(',') || '');
     formData.append('meals', propertyData.meals?.join(',') || '');
     if (propertyData.linkedMess) formData.append('linkedMess', propertyData.linkedMess);
-    
+
     // Add coordinates if available
     if (propertyData.coordinates) {
       formData.append('coordinates', JSON.stringify(propertyData.coordinates));
@@ -149,14 +167,14 @@ export const ownerService = {
     if (propertyData.totalRooms !== undefined) formData.append('totalRooms', propertyData.totalRooms);
     if (propertyData.maxOccupancy !== undefined) formData.append('maxOccupancy', propertyData.maxOccupancy);
     if (propertyData.pricePerBed !== undefined) formData.append('pricePerBed', propertyData.pricePerBed);
-    
+
     // Add images
     if (images && images.length > 0) {
       images.forEach(image => {
         formData.append('images', image);
       });
     }
-    
+
     const response = await api.post('/owner/add-property', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
@@ -181,16 +199,16 @@ export const ownerService = {
       formData.append('location', propertyData.location || '');
       formData.append('amenities', propertyData.amenities?.join(',') || '');
       formData.append('meals', propertyData.meals?.join(',') || '');
-      
+
       // Add coordinates if available
       if (propertyData.coordinates) {
         formData.append('coordinates', JSON.stringify(propertyData.coordinates));
       }
-      
+
       newImages.forEach(image => {
         formData.append('images', image);
       });
-      
+
       const response = await api.put(`/owner/property/${propertyId}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -221,7 +239,7 @@ export const ownerService = {
     const response = await api.get(`/owner/property/${propertyId}/rooms`);
     return response.data;
   },
-  
+
   // Update a room
   updateRoom: async (propertyId, roomId, roomData) => {
     const response = await api.patch(`/owner/property/${propertyId}/rooms/${roomId}`, roomData);
@@ -274,6 +292,12 @@ export const reviewService = {
     return response.data;
   },
 
+  // Get reviews for a mess
+  getMessReviews: async (messId, page = 1, limit = 10, sort = 'newest') => {
+    const response = await api.get(`/reviews/mess/${messId}?page=${page}&limit=${limit}&sort=${sort}`);
+    return response.data;
+  },
+
   // Create a new review
   create: async (reviewData) => {
     const response = await api.post('/reviews', reviewData);
@@ -283,6 +307,12 @@ export const reviewService = {
   // Check if user can review a booking
   canReview: async (bookingId) => {
     const response = await api.get(`/reviews/can-review/${bookingId}`);
+    return response.data;
+  },
+
+  // Check if user can review a mess subscription
+  canReviewMess: async (subscriptionId) => {
+    const response = await api.get(`/reviews/check-mess-eligibility/${subscriptionId}`);
     return response.data;
   },
 

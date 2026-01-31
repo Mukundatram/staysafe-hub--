@@ -26,7 +26,7 @@ export const messService = {
   // Create new mess service (Owner)
   create: async (messData, images) => {
     const formData = new FormData();
-    
+
     // Add text fields
     formData.append('name', messData.name);
     formData.append('description', messData.description || '');
@@ -34,7 +34,7 @@ export const messService = {
     formData.append('address', messData.address || '');
     formData.append('contactPhone', messData.contactPhone);
     formData.append('contactEmail', messData.contactEmail || '');
-    
+
     // Add JSON fields
     if (messData.coordinates) {
       formData.append('coordinates', JSON.stringify(messData.coordinates));
@@ -60,14 +60,14 @@ export const messService = {
     if (messData.maxSubscribers) {
       formData.append('maxSubscribers', messData.maxSubscribers);
     }
-    
+
     // Add images
     if (images && images.length > 0) {
       images.forEach(image => {
         formData.append('images', image);
       });
     }
-    
+
     const response = await api.post('/mess', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
@@ -119,6 +119,30 @@ export const messService = {
   // Approve subscription (Owner)
   approveSubscription: async (subscriptionId) => {
     const response = await api.patch(`/mess/subscriptions/${subscriptionId}/approve`);
+    return response.data;
+  },
+
+  // Reject subscription (Owner)
+  rejectSubscription: async (subscriptionId, reason = '') => {
+    const response = await api.patch(`/mess/subscriptions/${subscriptionId}/reject`, { reason });
+    return response.data;
+  },
+
+  // Get all subscription requests for owner's mess services
+  getOwnerSubscriptions: async (params = {}) => {
+    const queryParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value);
+      }
+    });
+    const response = await api.get(`/mess/owner/subscriptions?${queryParams.toString()}`);
+    return response.data;
+  },
+
+  // Toggle mess active status (soft delete/restore)
+  toggleActive: async (id) => {
+    const response = await api.delete(`/mess/${id}`);
     return response.data;
   }
 };

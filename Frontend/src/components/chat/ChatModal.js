@@ -12,7 +12,7 @@ import {
 } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 
-const ChatModal = ({ isOpen, onClose, property, ownerId, ownerName }) => {
+const ChatModal = ({ isOpen, onClose, property, ownerId, ownerName, type: chatType = 'property' }) => {
   const { user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
@@ -24,24 +24,33 @@ const ChatModal = ({ isOpen, onClose, property, ownerId, ownerName }) => {
   // Move fetchMessages above useEffect to avoid ReferenceError
   const fetchMessages = React.useCallback(async () => {
     try {
-      const data = await chatService.getMessages(property._id, ownerId);
+      let data;
+      if (chatType === 'mess') {
+        data = await chatService.getMessMessages(property._id, ownerId);
+      } else if (property?._id) {
+        data = await chatService.getMessages(property._id, ownerId);
+      } else {
+        console.warn("No property ID available to fetch messages");
+        setMessages([]);
+        return;
+      }
       setMessages(data);
     } catch (err) {
       console.error('Failed to fetch messages:', err);
       if (loading) {
-        toast.error('Failed to load messages');
+        // toast.error('Failed to load messages');
       }
     } finally {
       setLoading(false);
     }
-  }, [property, ownerId, loading]);
+  }, [property, ownerId, loading, chatType]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   useEffect(() => {
-    if (isOpen && property && ownerId) {
+    if (isOpen && ownerId && (property || chatType === 'mess')) {
       fetchMessages();
       const interval = setInterval(fetchMessages, 5000); // Poll every 5 seconds
       return () => clearInterval(interval);
@@ -64,12 +73,21 @@ const ChatModal = ({ isOpen, onClose, property, ownerId, ownerName }) => {
 
     try {
       setSending(true);
-      const message = await chatService.sendMessage(ownerId, property._id, newMessage.trim());
+      let message;
+      if (chatType === 'mess') {
+        message = await chatService.sendMessMessage(ownerId, property._id, newMessage.trim());
+      } else if (property?._id) {
+        message = await chatService.sendMessage(ownerId, property._id, newMessage.trim());
+      } else {
+        toast.error('Cannot send message: Property details missing');
+        setSending(false);
+        return;
+      }
       setMessages((prev) => [...prev, message]);
       setNewMessage('');
     } catch (err) {
       console.error('Failed to send message:', err);
-      toast.error('Failed to send message');
+      toast.error(err.response?.data?.message || 'Failed to send message');
     } finally {
       setSending(false);
     }
@@ -105,15 +123,15 @@ const ChatModal = ({ isOpen, onClose, property, ownerId, ownerName }) => {
             <div className="chat-header-info">
               <div className="chat-property-thumb">
                 <img
-                  src={property.images?.[0] || 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=60&h=60&fit=crop'}
-                  alt={property.title}
+                  src={property?.images?.[0] || 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=60&h=60&fit=crop'}
+                  alt={property?.title || 'Property'}
                 />
               </div>
               <div className="chat-header-text">
                 <h3>{ownerName || 'Property Owner'}</h3>
                 <p>
                   <HiOutlineLocationMarker size={14} />
-                  {property.title}
+                  {property?.title || 'Property Location'}
                 </p>
               </div>
             </div>
@@ -136,9 +154,8 @@ const ChatModal = ({ isOpen, onClose, property, ownerId, ownerName }) => {
               messages.map((msg) => (
                 <div
                   key={msg._id}
-                  className={`chat-message ${
-                    msg.sender._id === user?.id ? 'sent' : 'received'
-                  }`}
+                  className={`chat-message ${msg.sender._id === user?.id ? 'sent' : 'received'
+                    }`}
                 >
                   <div className="message-content">
                     <p>{msg.content}</p>

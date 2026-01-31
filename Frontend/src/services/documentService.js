@@ -29,6 +29,12 @@ const documentService = {
     return response.data;
   },
 
+  // Download document file (returns blob)
+  downloadDocument: async (id) => {
+    const response = await api.get(`/documents/download/${id}`, { responseType: 'blob' });
+    return response.data;
+  },
+
   // Delete document
   deleteDocument: async (id) => {
     const response = await api.delete(`/documents/${id}`);

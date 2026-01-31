@@ -33,7 +33,7 @@ const MessCard = ({ mess, onSubscribe }) => {
     pricing,
     features,
     isVerified,
-    currentSubscribers,
+    subscribers,
     maxSubscribers
   } = mess;
 
@@ -135,7 +135,7 @@ const MessCard = ({ mess, onSubscribe }) => {
             </div>
             <div className="mess-subscribers">
               <HiOutlineUserGroup />
-              <span>{currentSubscribers || 0}/{maxSubscribers}</span>
+              <span>{subscribers || 0}/{maxSubscribers}</span>
             </div>
           </div>
         </div>

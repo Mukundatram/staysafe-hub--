@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  HiStar, 
+import {
+  HiStar,
   HiOutlineThumbUp,
   HiThumbUp,
   HiOutlineChevronDown,
@@ -11,7 +11,7 @@ import { reviewService } from '../../services/propertyService';
 import toast from 'react-hot-toast';
 import { formatDistanceToNow } from 'date-fns';
 
-const ReviewList = ({ propertyId, averageRating = 0, reviewCount = 0, ratingBreakdown = {}, allowOwnerRespond = false }) => {
+const ReviewList = ({ propertyId, messId, averageRating = 0, reviewCount = 0, ratingBreakdown = {}, allowOwnerRespond = false }) => {
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
@@ -23,7 +23,12 @@ const ReviewList = ({ propertyId, averageRating = 0, reviewCount = 0, ratingBrea
   const fetchReviews = React.useCallback(async (page = 1, sort = sortBy) => {
     try {
       setLoading(true);
-      const data = await reviewService.getPropertyReviews(propertyId, page, 5, sort);
+      let data;
+      if (messId) {
+        data = await reviewService.getMessReviews(messId, page, 5, sort);
+      } else {
+        data = await reviewService.getPropertyReviews(propertyId, page, 5, sort);
+      }
       setReviews(data.reviews || []);
       setPagination(data.pagination || { page: 1, pages: 1, total: 0 });
       setRatingDistribution(data.ratingDistribution || {});
@@ -32,21 +37,21 @@ const ReviewList = ({ propertyId, averageRating = 0, reviewCount = 0, ratingBrea
     } finally {
       setLoading(false);
     }
-  }, [propertyId, sortBy]);
+  }, [propertyId, messId, sortBy]);
 
   useEffect(() => {
-    if (propertyId) {
+    if (propertyId || messId) {
       fetchReviews(1, sortBy);
     }
-  }, [propertyId, sortBy, fetchReviews]);
+  }, [propertyId, messId, sortBy, fetchReviews]);
 
   const handleMarkHelpful = async (reviewId) => {
     if (helpedReviews.has(reviewId)) return;
-    
+
     try {
       await reviewService.markHelpful(reviewId);
       setHelpedReviews(prev => new Set([...prev, reviewId]));
-      setReviews(prev => 
+      setReviews(prev =>
         prev.map(r => r._id === reviewId ? { ...r, helpfulVotes: r.helpfulVotes + 1 } : r)
       );
     } catch (error) {
@@ -77,10 +82,10 @@ const ReviewList = ({ propertyId, averageRating = 0, reviewCount = 0, ratingBrea
     return (
       <div className="stars-display">
         {[1, 2, 3, 4, 5].map((star) => (
-          <HiStar 
-            key={star} 
-            size={size} 
-            className={star <= rating ? 'star-filled' : 'star-empty'} 
+          <HiStar
+            key={star}
+            size={size}
+            className={star <= rating ? 'star-filled' : 'star-empty'}
           />
         ))}
       </div>
@@ -92,11 +97,17 @@ const ReviewList = ({ propertyId, averageRating = 0, reviewCount = 0, ratingBrea
     return Math.round((ratingDistribution[rating] || 0) / reviewCount * 100);
   };
 
-  const categories = [
+  const categories = messId ? [
+    { key: 'foodQuality', label: 'Food Quality' },
+    { key: 'service', label: 'Service' },
+    { key: 'value', label: 'Value' },
+    { key: 'cleanliness', label: 'Cleanliness' },
+    { key: 'communication', label: 'Communication' }
+  ] : [
     { key: 'cleanliness', label: 'Cleanliness' },
     { key: 'location', label: 'Location' },
     { key: 'value', label: 'Value' },
-    { key: 'communication', label: 'Communication' },
+    { key: 'communication', label: 'Owner Communication' },
     { key: 'amenities', label: 'Amenities' }
   ];
 
@@ -123,7 +134,7 @@ const ReviewList = ({ propertyId, averageRating = 0, reviewCount = 0, ratingBrea
                   <span className="bar-label">{rating}</span>
                   <HiStar size={14} className="star-filled" />
                   <div className="bar-track">
-                    <motion.div 
+                    <motion.div
                       className="bar-fill"
                       initial={{ width: 0 }}
                       animate={{ width: `${getRatingPercentage(rating)}%` }}
@@ -155,8 +166,8 @@ const ReviewList = ({ propertyId, averageRating = 0, reviewCount = 0, ratingBrea
             <span className="reviews-title">Reviews</span>
             <div className="sort-dropdown">
               <HiOutlineFilter size={16} />
-              <select 
-                value={sortBy} 
+              <select
+                value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
               >
                 <option value="newest">Newest First</option>
@@ -243,7 +254,7 @@ const ReviewList = ({ propertyId, averageRating = 0, reviewCount = 0, ratingBrea
 
                   {/* Helpful Button */}
                   <div className="review-actions">
-                    <button 
+                    <button
                       className={`helpful-btn ${helpedReviews.has(review._id) ? 'helped' : ''}`}
                       onClick={() => handleMarkHelpful(review._id)}
                       disabled={helpedReviews.has(review._id)}

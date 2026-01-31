@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  HiStar, 
+import {
+  HiStar,
   HiOutlineStar,
-  HiX 
+  HiX
 } from 'react-icons/hi';
 import { reviewService } from '../../services/propertyService';
 import toast from 'react-hot-toast';
 
-const ReviewModal = ({ isOpen, onClose, booking, onReviewSubmitted }) => {
+const ReviewModal = ({ isOpen, onClose, booking, messSubscription, onReviewSubmitted }) => {
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
   const [title, setTitle] = useState('');
@@ -18,21 +18,29 @@ const ReviewModal = ({ isOpen, onClose, booking, onReviewSubmitted }) => {
     location: 0,
     value: 0,
     communication: 0,
-    amenities: 0
+    amenities: 0,
+    foodQuality: 0,
+    service: 0
   });
   const [submitting, setSubmitting] = useState(false);
 
-  const ratingCategories = [
+  const ratingCategories = booking ? [
     { key: 'cleanliness', label: 'Cleanliness' },
     { key: 'location', label: 'Location' },
     { key: 'value', label: 'Value for Money' },
     { key: 'communication', label: 'Owner Communication' },
     { key: 'amenities', label: 'Amenities' }
+  ] : [
+    { key: 'foodQuality', label: 'Food Quality' },
+    { key: 'service', label: 'Service' },
+    { key: 'value', label: 'Value for Money' },
+    { key: 'cleanliness', label: 'Hygiene & Cleanliness' },
+    { key: 'communication', label: 'Communication' }
   ];
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (rating === 0) {
       toast.error('Please select an overall rating');
       return;
@@ -48,14 +56,30 @@ const ReviewModal = ({ isOpen, onClose, booking, onReviewSubmitted }) => {
 
     try {
       setSubmitting(true);
-      await reviewService.create({
-        bookingId: booking._id,
+      // Filter ratings to only include active categories with values > 0
+      const filteredRatings = {};
+      ratingCategories.forEach(cat => {
+        if (ratings[cat.key] > 0) {
+          filteredRatings[cat.key] = ratings[cat.key];
+        }
+      });
+
+      const reviewData = {
         rating,
         title: title.trim(),
         comment: comment.trim(),
-        ratings
-      });
-      
+        ratings: filteredRatings
+      };
+
+      if (booking) {
+        reviewData.bookingId = booking._id;
+      } else if (messSubscription) {
+        reviewData.messSubscriptionId = messSubscription._id;
+      }
+
+      await reviewService.create(reviewData);
+
+
       toast.success('Review submitted successfully!');
       onReviewSubmitted?.();
       onClose();
@@ -130,7 +154,9 @@ const ReviewModal = ({ isOpen, onClose, booking, onReviewSubmitted }) => {
         >
           <div className="review-modal-header">
             <h2>Write a Review</h2>
-            <p className="property-name">{booking?.property?.title}</p>
+            <p className="property-name">
+              {booking?.property?.title || messSubscription?.mess?.name}
+            </p>
             <button className="close-btn" onClick={onClose}>
               <HiX size={24} />
             </button>
@@ -195,8 +221,8 @@ const ReviewModal = ({ isOpen, onClose, booking, onReviewSubmitted }) => {
               <button type="button" className="btn-cancel" onClick={onClose}>
                 Cancel
               </button>
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="btn-submit"
                 disabled={submitting}
               >

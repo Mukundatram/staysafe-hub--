@@ -149,6 +149,17 @@ const LoginPage = () => {
               >
                 Sign In
               </Button>
+
+            <div style={{ marginTop: '0.75rem' }}>
+              <Button
+                variant="outline"
+                size="lg"
+                fullWidth
+                onClick={() => { window.location.href = '/api/auth/google'; }}
+              >
+                Sign in with Google
+              </Button>
+            </div>
             </form>
 
             <div className="auth-footer">

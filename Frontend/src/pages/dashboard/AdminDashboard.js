@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { bookingService } from '../../services/propertyService';
 import documentService from '../../services/documentService';
 import analyticsService from '../../services/analyticsService';
+import verificationService from '../../services/verificationService';
 import { useAuth } from '../../context/AuthContext';
 import Loading from '../../components/ui/Loading';
 import Card from '../../components/ui/Card';
@@ -38,10 +39,10 @@ import {
 
 const AdminDashboard = () => {
   useAuth(); // Ensure user is authenticated
-  
+
   // Main section toggle
   const [activeSection, setActiveSection] = useState('bookings');
-  
+
   // Booking states
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -49,7 +50,7 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('all');
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  
+
   // Document verification states
   const [documents, setDocuments] = useState([]);
   const [documentsLoading, setDocumentsLoading] = useState(false);
@@ -58,7 +59,18 @@ const AdminDashboard = () => {
   const [showDocumentModal, setShowDocumentModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [documentActionLoading, setDocumentActionLoading] = useState(null);
-  
+
+  // Student verifications (admin)
+  const [pendingVerifications, setPendingVerifications] = useState([]);
+  const [verifsLoading, setVerifsLoading] = useState(false);
+  const [verifsPage, setVerifsPage] = useState(1);
+  const [verifsPageSize] = useState(8);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectTarget, setRejectTarget] = useState(null);
+  const [rejectReasonLocal, setRejectReasonLocal] = useState('');
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+
   // Analytics states
   const [analytics, setAnalytics] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
@@ -80,6 +92,87 @@ const AdminDashboard = () => {
     fetchDocuments();
     fetchAnalytics();
   }, [fetchAnalytics]);
+
+  const [pendingTotal, setPendingTotal] = useState(0);
+  const [verifsQuery, setVerifsQuery] = useState('');
+
+  // Refetch verifications when page or query changes (debounced for query)
+  useEffect(() => {
+    let timer = null;
+    // If query changed, debounce; if page changed, fetch immediately
+    if (verifsQuery) {
+      timer = setTimeout(() => fetchPendingVerifications(verifsPage, verifsPageSize, verifsQuery), 350);
+    } else {
+      // no query, fetch immediately for page
+      fetchPendingVerifications(verifsPage, verifsPageSize, verifsQuery);
+    }
+    return () => { if (timer) clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verifsPage, verifsQuery]);
+
+  const fetchPendingVerifications = async (page = verifsPage, limit = verifsPageSize, q = verifsQuery) => {
+    try {
+      setVerifsLoading(true);
+      const res = await verificationService.getPendingForAdmin(page, limit, q);
+      setPendingVerifications(res.verifications || []);
+      setPendingTotal(res.total || 0);
+    } catch (err) {
+      console.error('Failed to fetch pending verifications:', err);
+      toast.error('Failed to load verifications');
+    } finally {
+      setVerifsLoading(false);
+    }
+  };
+
+  const handleRefreshVerifications = async () => {
+    toast.promise(fetchPendingVerifications(), {
+      loading: 'Refreshing verifications...',
+      success: 'Verifications refreshed!',
+      error: 'Failed to refresh'
+    });
+  };
+
+  const handleApproveVerification = async (record) => {
+    try {
+      setActionLoading(record._id);
+      await verificationService.adminApproveEmail({ token: record.token, userId: record.user?._id });
+      toast.success('Verification approved');
+      fetchPendingVerifications();
+    } catch (err) {
+      console.error('approve failed', err);
+      toast.error('Failed to approve');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const openRejectModal = (record) => {
+    setRejectTarget(record);
+    setRejectReasonLocal('');
+    setShowRejectModal(true);
+  };
+
+  const handleConfirmReject = async () => {
+    if (!rejectTarget) return;
+    try {
+      setActionLoading(rejectTarget._id);
+      await verificationService.adminRejectEmail({ token: rejectTarget.token, userId: rejectTarget.user?._id, reason: rejectReasonLocal });
+      toast.success('Verification rejected');
+      fetchPendingVerifications();
+      setShowRejectModal(false);
+      setRejectTarget(null);
+    } catch (err) {
+      console.error('reject failed', err);
+      toast.error('Failed to reject');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const openUserModal = (user) => {
+    setSelectedUser(user);
+    setShowUserModal(true);
+  };
 
   const fetchBookings = async () => {
     try {
@@ -127,7 +220,7 @@ const AdminDashboard = () => {
   const handleDocumentAction = async (documentId, action) => {
     try {
       setDocumentActionLoading(documentId);
-      
+
       if (action === 'review') {
         await documentService.markUnderReview(documentId);
         toast.success('Document marked as under review');
@@ -135,7 +228,7 @@ const AdminDashboard = () => {
         await documentService.verifyDocument(documentId, action, action === 'rejected' ? rejectionReason : '');
         toast.success(`Document ${action} successfully!`);
       }
-      
+
       fetchDocuments();
       setShowDocumentModal(false);
       setRejectionReason('');
@@ -262,9 +355,9 @@ const AdminDashboard = () => {
             <p>Manage bookings, verify documents, and oversee platform operations.</p>
           </div>
           <div className="header-actions">
-            <button 
-              className="refresh-btn" 
-              onClick={activeSection === 'bookings' ? handleRefresh : handleRefreshDocuments} 
+            <button
+              className="refresh-btn"
+              onClick={activeSection === 'bookings' ? handleRefresh : (activeSection === 'documents' ? handleRefreshDocuments : handleRefreshVerifications)}
               title={`Refresh ${activeSection}`}
             >
               <HiOutlineRefresh size={20} />
@@ -297,6 +390,16 @@ const AdminDashboard = () => {
             <span>Document Verification</span>
             {documentStats.pending > 0 && (
               <span className="badge-count">{documentStats.pending}</span>
+            )}
+          </button>
+          <button
+            className={`section-tab ${activeSection === 'verifications' ? 'active' : ''}`}
+            onClick={() => setActiveSection('verifications')}
+          >
+            <HiOutlineUsers size={20} />
+            <span>Student Verifications</span>
+            {pendingVerifications.length > 0 && (
+              <span className="badge-count">{pendingVerifications.length}</span>
             )}
           </button>
           <button
@@ -401,197 +504,197 @@ const AdminDashboard = () => {
                   </button>
                 </div>
 
-            {filteredBookings.length === 0 ? (
-              <EmptyState
-                icon={HiOutlineClipboardList}
-                title={activeTab === 'all' ? 'No bookings yet' : `No ${activeTab} bookings`}
-                description={activeTab === 'all' 
-                  ? 'Bookings will appear here once students start booking properties.'
-                  : `There are no ${activeTab} bookings at the moment.`
-                }
-              />
-            ) : (
-              <div className="bookings-grid">
-                {filteredBookings.map((booking) => (
-                  <motion.div
-                    key={booking._id}
-                    layout
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="booking-card"
-                  >
-                    <div className="booking-header">
-                      <Badge variant={getStatusVariant(booking.status)}>
-                        {booking.status}
-                      </Badge>
-                      <span className="booking-id">#{booking._id?.slice(-6)}</span>
-                    </div>
-
-                    <div className="booking-student">
-                      <div className="user-avatar">
-                        {booking.student?.name?.charAt(0) || 'U'}
-                      </div>
-                      <div className="user-info">
-                        <span className="user-name">{booking.student?.name || 'Unknown'}</span>
-                        <span className="user-email">{booking.student?.email || 'No email'}</span>
-                      </div>
-                    </div>
-
-                    <div className="booking-property">
-                      <HiOutlineHome size={18} />
-                      <span>{booking.property?.title || 'Property'}</span>
-                    </div>
-
-                    <div className="booking-dates">
-                      <HiOutlineCalendar size={16} />
-                      <span>
-                        {format(new Date(booking.startDate), 'MMM d')} - {format(new Date(booking.endDate), 'MMM d, yyyy')}
-                      </span>
-                    </div>
-
-                    <div className="booking-actions">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => openDetailModal(booking)}
-                        leftIcon={<HiOutlineEye size={16} />}
+                {filteredBookings.length === 0 ? (
+                  <EmptyState
+                    icon={HiOutlineClipboardList}
+                    title={activeTab === 'all' ? 'No bookings yet' : `No ${activeTab} bookings`}
+                    description={activeTab === 'all'
+                      ? 'Bookings will appear here once students start booking properties.'
+                      : `There are no ${activeTab} bookings at the moment.`
+                    }
+                  />
+                ) : (
+                  <div className="bookings-grid">
+                    {filteredBookings.map((booking) => (
+                      <motion.div
+                        key={booking._id}
+                        layout
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="booking-card"
                       >
-                        View
-                      </Button>
-                      {booking.status === 'Pending' && (
-                        <>
+                        <div className="booking-header">
+                          <Badge variant={getStatusVariant(booking.status)}>
+                            {booking.status}
+                          </Badge>
+                          <span className="booking-id">#{booking._id?.slice(-6)}</span>
+                        </div>
+
+                        <div className="booking-student">
+                          <div className="user-avatar">
+                            {booking.student?.name?.charAt(0) || 'U'}
+                          </div>
+                          <div className="user-info">
+                            <span className="user-name">{booking.student?.name || 'Unknown'}</span>
+                            <span className="user-email">{booking.student?.email || 'No email'}</span>
+                          </div>
+                        </div>
+
+                        <div className="booking-property">
+                          <HiOutlineHome size={18} />
+                          <span>{booking.property?.title || 'Property'}</span>
+                        </div>
+
+                        <div className="booking-dates">
+                          <HiOutlineCalendar size={16} />
+                          <span>
+                            {format(new Date(booking.startDate), 'MMM d')} - {format(new Date(booking.endDate), 'MMM d, yyyy')}
+                          </span>
+                        </div>
+
+                        <div className="booking-actions">
                           <Button
-                            variant="primary"
+                            variant="secondary"
                             size="sm"
-                            onClick={() => handleStatusUpdate(booking._id, 'Confirmed')}
-                            isLoading={actionLoading === booking._id}
-                            leftIcon={<HiOutlineCheck size={16} />}
+                            onClick={() => openDetailModal(booking)}
+                            leftIcon={<HiOutlineEye size={16} />}
                           >
-                            Approve
+                            View
                           </Button>
-                          <Button
-                            variant="danger"
-                            size="sm"
-                            onClick={() => handleStatusUpdate(booking._id, 'Rejected')}
-                            isLoading={actionLoading === booking._id}
-                            leftIcon={<HiOutlineX size={16} />}
-                          >
-                            Reject
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            )}
-          </Card>
-        </motion.div>
-
-        {/* Booking Detail Modal */}
-        <AnimatePresence>
-          {showDetailModal && selectedBooking && (
-            <div className="modal-overlay" onClick={() => setShowDetailModal(false)}>
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="modal"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="modal-header">
-                  <h2>Booking Details</h2>
-                  <button className="close-btn" onClick={() => setShowDetailModal(false)}>
-                    <HiOutlineX size={24} />
-                  </button>
-                </div>
-
-                <div className="modal-body">
-                  <div className="detail-section">
-                    <h3>Booking Status</h3>
-                    <Badge variant={getStatusVariant(selectedBooking.status)} size="lg">
-                      {selectedBooking.status}
-                    </Badge>
-                    <p className="booking-id-full">
-                      Booking ID: {selectedBooking._id}
-                    </p>
-                  </div>
-
-                  <div className="detail-section">
-                    <h3><HiOutlineUser size={18} /> Student Information</h3>
-                    <div className="detail-row">
-                      <span className="detail-label">Name:</span>
-                      <span className="detail-value">{selectedBooking.student?.name || 'N/A'}</span>
-                    </div>
-                    <div className="detail-row">
-                      <span className="detail-label"><HiOutlineMail size={14} /> Email:</span>
-                      <span className="detail-value">{selectedBooking.student?.email || 'N/A'}</span>
-                    </div>
-                    {selectedBooking.student?.phone && (
-                      <div className="detail-row">
-                        <span className="detail-label"><HiOutlinePhone size={14} /> Phone:</span>
-                        <span className="detail-value">{selectedBooking.student.phone}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="detail-section">
-                    <h3><HiOutlineHome size={18} /> Property Information</h3>
-                    <div className="detail-row">
-                      <span className="detail-label">Title:</span>
-                      <span className="detail-value">{selectedBooking.property?.title || 'N/A'}</span>
-                    </div>
-                    <div className="detail-row">
-                      <span className="detail-label"><HiOutlineLocationMarker size={14} /> Location:</span>
-                      <span className="detail-value">{selectedBooking.property?.location || 'N/A'}</span>
-                    </div>
-                    <div className="detail-row">
-                      <span className="detail-label"><HiOutlineCurrencyRupee size={14} /> Rent:</span>
-                      <span className="detail-value rent">₹{selectedBooking.property?.rent?.toLocaleString() || 'N/A'}/month</span>
-                    </div>
-                  </div>
-
-                  <div className="detail-section">
-                    <h3><HiOutlineClock size={18} /> Booking Duration</h3>
-                    <div className="detail-row">
-                      <span className="detail-label">Start Date:</span>
-                      <span className="detail-value">{format(new Date(selectedBooking.startDate), 'MMMM d, yyyy')}</span>
-                    </div>
-                    <div className="detail-row">
-                      <span className="detail-label">End Date:</span>
-                      <span className="detail-value">{format(new Date(selectedBooking.endDate), 'MMMM d, yyyy')}</span>
-                    </div>
-                    <div className="detail-row">
-                      <span className="detail-label">Booked On:</span>
-                      <span className="detail-value">{format(new Date(selectedBooking.createdAt || Date.now()), 'MMMM d, yyyy')}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {selectedBooking.status === 'Pending' && (
-                  <div className="modal-actions">
-                    <Button
-                      variant="danger"
-                      onClick={() => handleStatusUpdate(selectedBooking._id, 'Rejected')}
-                      isLoading={actionLoading === selectedBooking._id}
-                      leftIcon={<HiOutlineX size={16} />}
-                    >
-                      Reject Booking
-                    </Button>
-                    <Button
-                      variant="primary"
-                      onClick={() => handleStatusUpdate(selectedBooking._id, 'Confirmed')}
-                      isLoading={actionLoading === selectedBooking._id}
-                      leftIcon={<HiOutlineCheck size={16} />}
-                    >
-                      Approve Booking
-                    </Button>
+                          {booking.status === 'Pending' && (
+                            <>
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => handleStatusUpdate(booking._id, 'Confirmed')}
+                                isLoading={actionLoading === booking._id}
+                                leftIcon={<HiOutlineCheck size={16} />}
+                              >
+                                Approve
+                              </Button>
+                              <Button
+                                variant="danger"
+                                size="sm"
+                                onClick={() => handleStatusUpdate(booking._id, 'Rejected')}
+                                isLoading={actionLoading === booking._id}
+                                leftIcon={<HiOutlineX size={16} />}
+                              >
+                                Reject
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </motion.div>
+                    ))}
                   </div>
                 )}
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
+              </Card>
+            </motion.div>
+
+            {/* Booking Detail Modal */}
+            <AnimatePresence>
+              {showDetailModal && selectedBooking && (
+                <div className="modal-overlay" onClick={() => setShowDetailModal(false)}>
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                    className="modal"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="modal-header">
+                      <h2>Booking Details</h2>
+                      <button className="close-btn" onClick={() => setShowDetailModal(false)}>
+                        <HiOutlineX size={24} />
+                      </button>
+                    </div>
+
+                    <div className="modal-body">
+                      <div className="detail-section">
+                        <h3>Booking Status</h3>
+                        <Badge variant={getStatusVariant(selectedBooking.status)} size="lg">
+                          {selectedBooking.status}
+                        </Badge>
+                        <p className="booking-id-full">
+                          Booking ID: {selectedBooking._id}
+                        </p>
+                      </div>
+
+                      <div className="detail-section">
+                        <h3><HiOutlineUser size={18} /> Student Information</h3>
+                        <div className="detail-row">
+                          <span className="detail-label">Name:</span>
+                          <span className="detail-value">{selectedBooking.student?.name || 'N/A'}</span>
+                        </div>
+                        <div className="detail-row">
+                          <span className="detail-label"><HiOutlineMail size={14} /> Email:</span>
+                          <span className="detail-value">{selectedBooking.student?.email || 'N/A'}</span>
+                        </div>
+                        {selectedBooking.student?.phone && (
+                          <div className="detail-row">
+                            <span className="detail-label"><HiOutlinePhone size={14} /> Phone:</span>
+                            <span className="detail-value">{selectedBooking.student.phone}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="detail-section">
+                        <h3><HiOutlineHome size={18} /> Property Information</h3>
+                        <div className="detail-row">
+                          <span className="detail-label">Title:</span>
+                          <span className="detail-value">{selectedBooking.property?.title || 'N/A'}</span>
+                        </div>
+                        <div className="detail-row">
+                          <span className="detail-label"><HiOutlineLocationMarker size={14} /> Location:</span>
+                          <span className="detail-value">{selectedBooking.property?.location || 'N/A'}</span>
+                        </div>
+                        <div className="detail-row">
+                          <span className="detail-label"><HiOutlineCurrencyRupee size={14} /> Rent:</span>
+                          <span className="detail-value rent">₹{selectedBooking.property?.rent?.toLocaleString() || 'N/A'}/month</span>
+                        </div>
+                      </div>
+
+                      <div className="detail-section">
+                        <h3><HiOutlineClock size={18} /> Booking Duration</h3>
+                        <div className="detail-row">
+                          <span className="detail-label">Start Date:</span>
+                          <span className="detail-value">{format(new Date(selectedBooking.startDate), 'MMMM d, yyyy')}</span>
+                        </div>
+                        <div className="detail-row">
+                          <span className="detail-label">End Date:</span>
+                          <span className="detail-value">{format(new Date(selectedBooking.endDate), 'MMMM d, yyyy')}</span>
+                        </div>
+                        <div className="detail-row">
+                          <span className="detail-label">Booked On:</span>
+                          <span className="detail-value">{format(new Date(selectedBooking.createdAt || Date.now()), 'MMMM d, yyyy')}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {selectedBooking.status === 'Pending' && (
+                      <div className="modal-actions">
+                        <Button
+                          variant="danger"
+                          onClick={() => handleStatusUpdate(selectedBooking._id, 'Rejected')}
+                          isLoading={actionLoading === selectedBooking._id}
+                          leftIcon={<HiOutlineX size={16} />}
+                        >
+                          Reject Booking
+                        </Button>
+                        <Button
+                          variant="primary"
+                          onClick={() => handleStatusUpdate(selectedBooking._id, 'Confirmed')}
+                          isLoading={actionLoading === selectedBooking._id}
+                          leftIcon={<HiOutlineCheck size={16} />}
+                        >
+                          Approve Booking
+                        </Button>
+                      </div>
+                    )}
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
           </>
         )}
 
@@ -680,7 +783,7 @@ const AdminDashboard = () => {
                   <EmptyState
                     icon={HiOutlineShieldCheck}
                     title={documentTab === 'all' ? 'No documents to verify' : `No ${documentTab.replace('_', ' ')} documents`}
-                    description={documentTab === 'all' 
+                    description={documentTab === 'all'
                       ? 'Documents submitted by users will appear here for verification.'
                       : `There are no documents with ${documentTab.replace('_', ' ')} status.`
                     }
@@ -810,9 +913,9 @@ const AdminDashboard = () => {
                             <div className="pdf-preview">
                               <HiOutlineDocumentText size={48} />
                               <p>PDF Document</p>
-                              <a 
-                                href={`http://localhost:4000${selectedDocument.filePath}`} 
-                                target="_blank" 
+                              <a
+                                href={`http://localhost:4000${selectedDocument.filePath}`}
+                                target="_blank"
                                 rel="noopener noreferrer"
                                 className="download-link"
                               >
@@ -821,7 +924,7 @@ const AdminDashboard = () => {
                               </a>
                             </div>
                           ) : (
-                            <img 
+                            <img
                               src={`http://localhost:4000${selectedDocument.filePath}`}
                               alt="Document"
                               className="document-image"
@@ -878,6 +981,144 @@ const AdminDashboard = () => {
                 </div>
               )}
             </AnimatePresence>
+          </>
+        )}
+
+        {/* VERIFICATIONS SECTION */}
+        {activeSection === 'verifications' && (
+          <>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="stats-grid"
+            >
+              <Card padding="md" className="stat-card">
+                <div className="stat-icon">
+                  <HiOutlineUsers size={24} />
+                </div>
+                <div className="stat-info">
+                  <span className="stat-value">{pendingVerifications.length}</span>
+                  <span className="stat-label">Pending Verifications</span>
+                </div>
+              </Card>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <Card padding="lg">
+                <div className="card-header" style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'space-between' }}>
+                  <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <HiOutlineUsers size={24} />
+                    Pending Student Verifications
+                  </h2>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      placeholder="Search name or email"
+                      value={verifsQuery}
+                      onChange={(e) => setVerifsQuery(e.target.value)}
+                      style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border-light)' }}
+                    />
+                    <Button variant="primary" size="sm" onClick={() => { setVerifsPage(1); fetchPendingVerifications(1); }}>Search</Button>
+                    <Button variant="ghost" size="sm" onClick={() => { setVerifsQuery(''); setVerifsPage(1); fetchPendingVerifications(1, verifsPageSize, ''); }}>Clear</Button>
+                  </div>
+                </div>
+
+                {verifsLoading ? (
+                  <div style={{ padding: '2rem', textAlign: 'center' }}>
+                    <Loading size="md" text="Loading verifications..." />
+                  </div>
+                ) : pendingVerifications.length === 0 ? (
+                  <EmptyState
+                    icon={HiOutlineUsers}
+                    title={'No pending verifications'}
+                    description={'There are no student verifications awaiting admin review.'}
+                  />
+                ) : (
+                  (() => {
+                    const totalPages = Math.max(1, Math.ceil(pendingTotal / verifsPageSize));
+                    return (
+                      <>
+                        <div className="documents-grid">
+                          {pendingVerifications.map((rec) => (
+                            <motion.div
+                              key={rec._id}
+                              layout
+                              initial={{ opacity: 0, scale: 0.95 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              className="document-card"
+                            >
+                              <div className="document-header">
+                                <Badge variant="warning">Pending</Badge>
+                                <span className="document-id">#{rec._id?.slice(-6)}</span>
+                              </div>
+
+                              <div className="document-user">
+                                <div className="user-avatar">{rec.user?.name?.charAt(0) || 'U'}</div>
+                                <div className="user-info">
+                                  <span className="user-name">{rec.user?.name || 'Unknown'}</span>
+                                  <span className="user-email">{rec.user?.email || rec.email}</span>
+                                </div>
+                              </div>
+
+                              <div className="document-meta">
+                                <HiOutlineMail size={16} />
+                                <span>Email: {rec.email}</span>
+                              </div>
+
+                              <div className="document-meta">
+                                <HiOutlineClock size={16} />
+                                <span>Submitted: {format(new Date(rec.createdAt), 'MMM d, yyyy')}</span>
+                              </div>
+
+                              <div className="document-actions">
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => openUserModal(rec.user || { email: rec.email })}
+                                  leftIcon={<HiOutlineEye size={16} />}
+                                >
+                                  View Profile
+                                </Button>
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  onClick={() => handleApproveVerification(rec)}
+                                  isLoading={actionLoading === rec._id}
+                                  leftIcon={<HiOutlineCheck size={16} />}
+                                >
+                                  Approve
+                                </Button>
+                                <Button
+                                  variant="danger"
+                                  size="sm"
+                                  onClick={() => openRejectModal(rec)}
+                                  isLoading={actionLoading === rec._id}
+                                  leftIcon={<HiOutlineX size={16} />}
+                                >
+                                  Reject
+                                </Button>
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
+
+                        {/* Pagination */}
+                        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16, gap: 8 }}>
+                          <Button variant="ghost" size="sm" onClick={() => { const np = Math.max(1, verifsPage - 1); setVerifsPage(np); fetchPendingVerifications(np); }} disabled={verifsPage === 1}>Prev</Button>
+                          <div style={{ alignSelf: 'center' }}>Page {verifsPage} / {totalPages}</div>
+                          <Button variant="ghost" size="sm" onClick={() => { const np = Math.min(totalPages, verifsPage + 1); setVerifsPage(np); fetchPendingVerifications(np); }} disabled={verifsPage === totalPages}>Next</Button>
+                        </div>
+                      </>
+                    );
+                  })()
+                )}
+              </Card>
+            </motion.div>
           </>
         )}
 
@@ -967,8 +1208,8 @@ const AdminDashboard = () => {
                         return (
                           <div key={index} className="bar-item">
                             <div className="bar-wrapper">
-                              <div 
-                                className="bar" 
+                              <div
+                                className="bar"
                                 style={{ height: `${height}%` }}
                                 title={`${month.total} new users`}
                               >
@@ -1000,8 +1241,8 @@ const AdminDashboard = () => {
                           return (
                             <div key={index} className="bar-item">
                               <div className="bar-wrapper">
-                                <div 
-                                  className="bar bar-gradient-green" 
+                                <div
+                                  className="bar bar-gradient-green"
                                   style={{ height: `${height}%` }}
                                   title={`${month.total} bookings`}
                                 >
@@ -1031,12 +1272,12 @@ const AdminDashboard = () => {
                           return (
                             <div key={index} className="bar-item">
                               <div className="bar-wrapper">
-                                <div 
-                                  className="bar bar-gradient-gold" 
+                                <div
+                                  className="bar bar-gradient-gold"
                                   style={{ height: `${height}%` }}
                                   title={`₹${month.revenue.toLocaleString()}`}
                                 >
-                                  <span className="bar-value">₹{month.revenue >= 1000 ? `${(month.revenue/1000).toFixed(0)}k` : month.revenue}</span>
+                                  <span className="bar-value">₹{month.revenue >= 1000 ? `${(month.revenue / 1000).toFixed(0)}k` : month.revenue}</span>
                                 </div>
                               </div>
                               <span className="bar-label">{month.month}</span>
@@ -1157,6 +1398,94 @@ const AdminDashboard = () => {
             )}
           </motion.div>
         )}
+
+        {/* Reject modal */}
+        <AnimatePresence>
+          {showRejectModal && rejectTarget && (
+            <div className="modal-overlay" onClick={() => setShowRejectModal(false)}>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="modal"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="modal-header">
+                  <h2>Reject Verification</h2>
+                  <button className="close-btn" onClick={() => setShowRejectModal(false)}>
+                    <HiOutlineX size={24} />
+                  </button>
+                </div>
+
+                <div className="modal-body">
+                  <div className="detail-section">
+                    <h3>User</h3>
+                    <div className="detail-row">
+                      <span className="detail-label">Name:</span>
+                      <span className="detail-value">{rejectTarget.user?.name || 'N/A'}</span>
+                    </div>
+                    <div className="detail-row">
+                      <span className="detail-label">Email:</span>
+                      <span className="detail-value">{rejectTarget.user?.email || rejectTarget.email}</span>
+                    </div>
+                  </div>
+
+                  <div className="detail-section">
+                    <h3>Reason (optional)</h3>
+                    <textarea
+                      value={rejectReasonLocal}
+                      onChange={(e) => setRejectReasonLocal(e.target.value)}
+                      style={{ width: '100%', minHeight: 100, padding: 8 }}
+                      placeholder="Explain why this verification is being rejected"
+                    />
+                  </div>
+                </div>
+
+                <div className="modal-actions">
+                  <Button variant="ghost" onClick={() => setShowRejectModal(false)}>Cancel</Button>
+                  <Button variant="danger" onClick={handleConfirmReject} isLoading={actionLoading === rejectTarget._id}>Confirm Reject</Button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* User profile modal */}
+        <AnimatePresence>
+          {showUserModal && selectedUser && (
+            <div className="modal-overlay" onClick={() => setShowUserModal(false)}>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="modal"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="modal-header">
+                  <h2>User Profile</h2>
+                  <button className="close-btn" onClick={() => setShowUserModal(false)}>
+                    <HiOutlineX size={24} />
+                  </button>
+                </div>
+
+                <div className="modal-body">
+                  <div className="detail-section">
+                    <h3>Basic</h3>
+                    <div className="detail-row"><span className="detail-label">Name:</span><span className="detail-value">{selectedUser?.name || 'N/A'}</span></div>
+                    <div className="detail-row"><span className="detail-label">Email:</span><span className="detail-value">{selectedUser?.email || 'N/A'}</span></div>
+                    <div className="detail-row"><span className="detail-label">Phone:</span><span className="detail-value">{selectedUser?.phone || 'N/A'}</span></div>
+                    <div className="detail-row"><span className="detail-label">College:</span><span className="detail-value">{selectedUser?.college || 'N/A'}</span></div>
+                    <div className="detail-row"><span className="detail-label">Verification State:</span><span className="detail-value">{selectedUser?.verificationState || 'N/A'}</span></div>
+                  </div>
+                </div>
+
+                <div className="modal-actions">
+                  <Button variant="primary" onClick={() => setShowUserModal(false)}>Close</Button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </div>
 
       <style>{`

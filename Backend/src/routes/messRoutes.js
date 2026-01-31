@@ -108,8 +108,37 @@ router.get('/', async (req, res) => {
       Mess.countDocuments(filter)
     ]);
 
+    // Calculate genuine subscriber count for each mess from MessSubscription collection
+    const messIds = messServices.map(m => m._id);
+    const subscriberCounts = await MessSubscription.aggregate([
+      {
+        $match: {
+          mess: { $in: messIds },
+          status: { $in: ['Active', 'Pending'] }
+        }
+      },
+      {
+        $group: {
+          _id: '$mess',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Create a map for quick lookup
+    const countMap = {};
+    subscriberCounts.forEach(c => {
+      countMap[c._id.toString()] = c.count;
+    });
+
+    // Add subscriber count to each mess service
+    const messServicesWithSubscribers = messServices.map(mess => ({
+      ...mess.toObject(),
+      subscribers: countMap[mess._id.toString()] || 0
+    }));
+
     res.json({
-      messServices,
+      messServices: messServicesWithSubscribers,
       pagination: {
         total,
         page: parseInt(page),
@@ -245,7 +274,19 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Mess service not found' });
     }
 
-    res.json(mess);
+    // Count genuine active subscribers from MessSubscription collection
+    const subscriberCount = await MessSubscription.countDocuments({
+      mess: req.params.id,
+      status: { $in: ['Active', 'Pending'] }
+    });
+
+    // Add the genuine subscriber count to the response
+    const messWithSubscribers = {
+      ...mess.toObject(),
+      subscribers: subscriberCount
+    };
+
+    res.json(messWithSubscribers);
   } catch (error) {
     console.error('Error fetching mess details:', error);
     res.status(500).json({ error: 'Failed to fetch mess details' });
