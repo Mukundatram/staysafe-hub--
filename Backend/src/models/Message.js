@@ -9,17 +9,23 @@ const messageSchema = new mongoose.Schema({
   read: { type: Boolean, default: false }
 }, { timestamps: true });
 
-// Validation: must have either property or mess reference
-messageSchema.pre('save', function (next) {
-  if (!this.property && !this.mess) {
-    return next(new Error('Message must have either property or mess reference'));
-  }
-  next();
-});
+// Validation: property and mess are now optional to support roommate direct messages
+// No pre-save validation needed
 
 // Index for efficient querying of conversations
 messageSchema.index({ sender: 1, receiver: 1, property: 1 });
 messageSchema.index({ sender: 1, receiver: 1, mess: 1 });
 messageSchema.index({ createdAt: -1 });
+
+// Index for roommate direct messages (messages without property or mess)
+messageSchema.index(
+  { sender: 1, receiver: 1, createdAt: -1 },
+  {
+    partialFilterExpression: {
+      property: { $exists: false },
+      mess: { $exists: false }
+    }
+  }
+);
 
 module.exports = mongoose.model('Message', messageSchema);

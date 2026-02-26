@@ -1,0 +1,183 @@
+# Email OTP Verification + Google Auth Improvements
+
+## Problem
+
+1. **No email verification** — anyone can register with a fake email, no proof of ownership
+2. **Google OAuth ignores role** — always creates users as [student](file:///c:/Users/mukun/Downloads/staysafe/Backend/src/controllers/bookingController.js#528-590), no role selector
+3. **RegisterPage has no Google button** — only LoginPage has "Sign in with Google"
+
+## Proposed Flow
+
+### Email/Password Registration (2-step)
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant F as Frontend
+    participant B as Backend
+    participant E as Email
+
+    U->>F: Fill name, email, password, role
+    F->>B: POST /auth/register (pending user)
+    B->>E: Send 6-digit OTP email
+    B-->>F: { pendingUserId, message }
+    F->>F: Show OTP input screen
+    U->>F: Enter OTP
+    F->>B: POST /auth/verify-otp { pendingUserId, otp }
+    B->>B: Create real User, mark emailVerified
+    B-->>F: { token, user } (auto-login)
+```
+
+### Google OAuth with Role Selection
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant F as Frontend (RegisterPage)
+    participant B as Backend
+
+    U->>F: Select role, click "Sign up with Google"
+    F->>B: GET /auth/google?role=owner
+    B->>B: Passport OAuth → Google consent
+    B->>B: Create/find user with selected role
+    B-->>F: Redirect with token
+```
+
+> [!IMPORTANT]
+> Google-authenticated emails are inherently verified by Google, so **no OTP step** is needed for Google sign-ups.
+
+---
+
+## Proposed Changes
+
+### Backend
+
+---
+
+#### [NEW] `src/models/PendingUser.js`
+
+Temporary model for unverified registrations with TTL auto-cleanup:
+
+| Field | Type | Notes |
+|-------|------|-------|
+| [name](file:///c:/Users/mukun/Downloads/staysafe/Backend/src/routes/documentRoutes.js#20-25) | String | From registration form |
+| `email` | String | unique, indexed |
+| `passwordHash` | String | Pre-hashed |
+| `role` | String | student/owner/admin |
+| `otp` | String | 6-digit, hashed with bcrypt |
+| `otpExpiresAt` | Date | 10 minutes TTL |
+| `attempts` | Number | Max 5 attempts, prevents brute-force |
+| `createdAt` | Date | TTL index: auto-delete after 1 hour |
+
+> [!TIP]
+> Using a separate model (not the User model) keeps the main User collection clean — unverified registrations automatically expire and get deleted by MongoDB TTL.
+
+---
+
+#### [NEW] `src/services/authService.js`
+
+DRY service consolidating auth business logic:
+
+| Function | Purpose |
+|----------|---------|
+| `createPendingUser(data)` | Hash password + OTP, create PendingUser, send OTP email |
+| `verifyOtp(pendingUserId, otp)` | Validate OTP, create real User, generate JWT, cleanup |
+| `resendOtp(pendingUserId)` | Generate new OTP, reset attempts, send email |
+| `generateOtp()` | 6-digit random number (shared helper) |
+| `issueToken(user)` | JWT sign with `AUTH.JWT_EXPIRES_IN` (DRY — used by register, login, Google) |
+
+---
+
+#### [MODIFY] [src/routes/authRoutes.js](file:///c:/Users/mukun/Downloads/staysafe/Backend/src/routes/authRoutes.js)
+
+| Change | Details |
+|--------|---------|
+| `POST /register` | Now creates `PendingUser` + sends OTP, does NOT create real User yet |
+| `POST /verify-otp` | **New** — validates OTP, creates User, returns JWT |
+| `POST /resend-otp` | **New** — resends OTP to pending user |
+| `POST /login` | Add `emailVerified` check — reject unverified users |
+| `GET /google` | Accept `?role=` query param, pass to strategy via `state` |
+| Google callback | Read role from state, use it when creating new user |
+
+---
+
+#### [MODIFY] [src/models/User.js](file:///c:/Users/mukun/Downloads/staysafe/Backend/src/models/User.js)
+
+Add one field:
+
+```diff
++ emailVerified: { type: Boolean, default: false },
+```
+
+Google users get `emailVerified: true` automatically. Existing users get `emailVerified: true` via a migration-safe default.
+
+---
+
+#### [MODIFY] [src/services/emailService.js](file:///c:/Users/mukun/Downloads/staysafe/Backend/src/services/emailService.js)
+
+Add one new template:
+
+```javascript
+email_otp: (data) => ({
+  subject: 'Your StaySafe Hub verification code',
+  html: `... 6-digit OTP display ...`
+})
+```
+
+---
+
+#### [MODIFY] [src/config/constants.js](file:///c:/Users/mukun/Downloads/staysafe/Backend/src/config/constants.js)
+
+```javascript
+const OTP = {
+  LENGTH: 6,
+  EXPIRY_MINUTES: 10,
+  MAX_ATTEMPTS: 5,
+  RESEND_COOLDOWN_SECONDS: 60,
+  PENDING_USER_TTL_HOURS: 1
+};
+```
+
+---
+
+### Frontend
+
+---
+
+#### [MODIFY] [src/pages/auth/RegisterPage.js](file:///c:/Users/mukun/Downloads/staysafe/Frontend/src/pages/auth/RegisterPage.js)
+
+- Add a **step-based UI** (Step 1: form → Step 2: OTP input)
+- Add **"Sign up with Google"** button below the form (like LoginPage)
+- OTP step shows: 6-digit input boxes, resend link with cooldown timer, countdown
+- On successful OTP verification → auto-login and redirect
+
+---
+
+#### [MODIFY] [src/context/AuthContext.js](file:///c:/Users/mukun/Downloads/staysafe/Frontend/src/context/AuthContext.js)
+
+- `register()` now returns `{ pendingUserId }` instead of auto-logging in
+- Add `verifyOtp(pendingUserId, otp)` function
+- Add `resendOtp(pendingUserId)` function
+
+---
+
+#### [MODIFY] [src/pages/auth/LoginPage.js](file:///c:/Users/mukun/Downloads/staysafe/Frontend/src/pages/auth/LoginPage.js)
+
+- Minor: update Google button URL to include `role` if available
+
+---
+
+## Verification Plan
+
+### Automated
+- Server starts without errors
+- `POST /register` returns pendingUserId (does NOT create User)
+- `POST /verify-otp` with correct OTP creates User + returns token
+- `POST /verify-otp` with wrong OTP returns error
+- `POST /login` with unverified email returns appropriate error
+- Google OAuth still works with role selection
+
+### Manual
+- Test full registration flow in browser
+- Verify OTP email arrives
+- Verify Google sign-up with role selection

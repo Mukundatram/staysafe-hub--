@@ -7,6 +7,7 @@ const User = require('../models/User');
 const { sendEmail } = require('../services/emailService');
 const Notification = require('../models/Notification');
 const VerificationAudit = require('../models/VerificationAudit');
+const { VERIFICATION } = require('../config/constants');
 
 function generateToken() {
   return crypto.randomBytes(20).toString('hex');
@@ -21,7 +22,7 @@ router.post('/request-college-email', authenticate, async (req, res) => {
     }
 
     const token = generateToken();
-    const expiresAt = new Date(Date.now() + (24 * 60 * 60 * 1000)); // 24 hours
+    const expiresAt = new Date(Date.now() + (VERIFICATION.TOKEN_EXPIRY_HOURS * 60 * 60 * 1000)); // 24 hours
 
     // create verification record
     await StudentVerification.create({
@@ -68,7 +69,7 @@ router.get('/verify-college-email', async (req, res) => {
     const domainAllowed = allowedList.includes(domain) || domainRegex.test(domain);
 
     // set college field to domain (optional)
-    try { user.college = domain; } catch (e) {}
+    try { user.college = domain; } catch (e) { }
 
     if (domainAllowed) {
       // Auto-approve as verified student
@@ -76,12 +77,12 @@ router.get('/verify-college-email', async (req, res) => {
       await user.save();
 
       // Audit
-      try { await VerificationAudit.create({ user: user._id, action: 'verify_email', token, providerRef: null, ip: req.ip, userAgent: req.get('User-Agent') }); } catch (e) {}
+      try { await VerificationAudit.create({ user: user._id, action: 'verify_email', token, providerRef: null, ip: req.ip, userAgent: req.get('User-Agent') }); } catch (e) { }
 
       // Notify user
       try {
         await Notification.create({ user: user._id, type: 'system', title: 'College Verified', message: 'Your college email has been verified and you have been granted the student badge.' });
-      } catch (e) {}
+      } catch (e) { }
 
       return res.send(`<html><body><h2>College email verified and approved</h2><p>You may now return to the app.</p></body></html>`);
     } else {
@@ -90,7 +91,7 @@ router.get('/verify-college-email', async (req, res) => {
       await user.save();
 
       // Audit
-      try { await VerificationAudit.create({ user: user._id, action: 'verify_email_pending', token, ip: req.ip, userAgent: req.get('User-Agent') }); } catch (e) {}
+      try { await VerificationAudit.create({ user: user._id, action: 'verify_email_pending', token, ip: req.ip, userAgent: req.get('User-Agent') }); } catch (e) { }
 
       // Notify admins (simple approach: create system notification for all admins)
       try {
@@ -122,10 +123,10 @@ router.post('/admin/approve-email', authenticate, authorize(['admin']), async (r
     user.verificationState = 'verified_student';
     await user.save();
 
-    try { await VerificationAudit.create({ user: user._id, admin: req.user._id, action: 'admin_approve_email', reason, token }); } catch (e) {}
+    try { await VerificationAudit.create({ user: user._id, admin: req.user._id, action: 'admin_approve_email', reason, token }); } catch (e) { }
 
     // notify user
-    try { await Notification.create({ user: user._id, type: 'system', title: 'Verification Approved', message: 'An administrator has approved your college verification.' }); } catch (e) {}
+    try { await Notification.create({ user: user._id, type: 'system', title: 'Verification Approved', message: 'An administrator has approved your college verification.' }); } catch (e) { }
 
     res.json({ success: true });
   } catch (e) {
@@ -147,10 +148,10 @@ router.post('/admin/reject-email', authenticate, authorize(['admin']), async (re
     user.verificationState = 'verification_failed';
     await user.save();
 
-    try { await VerificationAudit.create({ user: user._id, admin: req.user._id, action: 'admin_reject_email', reason, token }); } catch (e) {}
+    try { await VerificationAudit.create({ user: user._id, admin: req.user._id, action: 'admin_reject_email', reason, token }); } catch (e) { }
 
     // notify user
-    try { await Notification.create({ user: user._id, type: 'system', title: 'Verification Rejected', message: `Your college verification was rejected: ${reason || 'No reason provided'}` }); } catch (e) {}
+    try { await Notification.create({ user: user._id, type: 'system', title: 'Verification Rejected', message: `Your college verification was rejected: ${reason || 'No reason provided'}` }); } catch (e) { }
 
     res.json({ success: true });
   } catch (e) {

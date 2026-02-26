@@ -4,12 +4,13 @@ const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   passwordHash: { type: String, required: true },
-  role: { type: String, enum: ['student','owner','admin'], required: true },
+  role: { type: String, enum: ['student', 'owner', 'admin'], required: true },
+  emailVerified: { type: Boolean, default: false },
   phone: { type: String },
   phoneVerified: { type: Boolean, default: false },
   phoneVerifiedAt: Date,
   avatar: { type: String },
-  
+
   // Verification status
   verificationStatus: {
     identity: {
@@ -46,11 +47,11 @@ const userSchema = new mongoose.Schema({
     verifiedAt: Date,
     providerRef: String
   },
-  
+
   // For students - college info
   college: { type: String },
   studentId: { type: String },
-  
+
   // For owners - property ownership verification
   propertyVerification: {
     verified: { type: Boolean, default: false },
@@ -60,10 +61,10 @@ const userSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Update fully verified status
-userSchema.pre('save', function(next) {
+userSchema.pre('save', function (next) {
   if (this.verificationStatus) {
-    this.verificationStatus.isFullyVerified = 
-      this.verificationStatus.identity?.verified && 
+    this.verificationStatus.isFullyVerified =
+      this.verificationStatus.identity?.verified &&
       this.verificationStatus.address?.verified;
   }
   next();

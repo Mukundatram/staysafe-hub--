@@ -13,6 +13,7 @@ const authenticate = async (req, res, next) => {
     req.user = await User.findById(decoded.id);
     next();
   } catch (err) {
+    console.log('Auth failed:', err.message);
     res.status(401).json({ message: 'Token invalid' });
   }
 };

@@ -16,7 +16,61 @@ const bookingSchema = new mongoose.Schema({
   endDate: { type: Date, required: true },
   status: { type: String, enum: ['Pending', 'Confirmed', 'Rejected', 'Completed', 'Cancelled'], default: 'Pending' },
   completedAt: { type: Date }, // When the student left/completed the stay
-  completionReason: { type: String } // Optional reason for leaving early
+  completionReason: { type: String }, // Optional reason for leaving early
+
+  // Roommate collaboration fields (optional, for joint bookings)
+  roommateConnection: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'RoommateRequest',
+    required: false
+  },
+  coOccupants: {
+    type: [{
+      user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+      },
+      status: {
+        type: String,
+        enum: ['pending', 'confirmed', 'declined'],
+        default: 'pending'
+      },
+      confirmedAt: { type: Date }
+    }],
+    default: []
+  },
+
+  // Room Share Discovery fields (User B joins User A's existing booking)
+  openToRoommate: {
+    type: Boolean,
+    default: false,
+    index: true  // For efficient querying of available shares
+  },
+  joinRequests: {
+    type: [{
+      requester: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+      },
+      status: {
+        type: String,
+        enum: ['pending', 'accepted', 'declined'],
+        default: 'pending'
+      },
+      message: {
+        type: String,
+        maxlength: 500
+      },
+      requestedAt: {
+        type: Date,
+        default: Date.now
+      },
+      respondedAt: Date
+    }],
+    default: []
+  }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Booking', bookingSchema);

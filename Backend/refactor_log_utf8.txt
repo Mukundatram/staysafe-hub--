@@ -1,0 +1,21 @@
+﻿Initial length: 32966
+After header imports: 32836
+Replacement getAllBookings: Matched! -> New Length: 32800
+Replacement createBooking: Matched! -> New Length: 32743
+Replacement adminUpdateBooking: Matched! -> New Length: 32692
+Replacement adminCreateBooking: Matched! -> New Length: 32639
+Replacement ownerGetBookings: Matched! -> New Length: 32592
+Replacement ownerUpdateBooking: Matched! -> New Length: 32533
+Replacement studentGetBookings: Matched! -> New Length: 32497
+Replacement studentLeaveRoom: Matched! -> New Length: 32442
+Replacement studentCancelBooking: Matched! -> New Length: 32390
+Replacement bookWithRoommate: Missed. -> New Length: 32390
+Replacement confirmRoommate: Missed. -> New Length: 32390
+Replacement getPendingRoommateInvites: Missed. -> New Length: 32390
+Replacement getRoomShares: Missed. -> New Length: 32390
+Replacement requestJoin: Missed. -> New Length: 32390
+Replacement respondJoin: Missed. -> New Length: 32390
+Replacement getPendingJoinRequests: Missed. -> New Length: 32390
+After 1st trailing cleanup: 32369
+After 2nd trailing cleanup: 32369
+Final length: 32369

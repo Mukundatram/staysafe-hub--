@@ -29,16 +29,37 @@ const aiRoutes = require('./routes/aiRoutes');
 const messRoutes = require('./routes/messRoutes');
 const messAdminRoutes = require('./routes/messAdminRoutes');
 const userRoutes = require('./routes/userRoutes');
+const roommateRoutes = require('./routes/roommateRoutes');
 
 const app = express();
 
 // ✅ MIDDLEWARE
+// Allow requests from the production frontend URL or local dev
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:3000'
+].filter(Boolean);
+
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: function (origin, callback) {
+    // allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
   credentials: true,
 }));
 app.use(express.json());
 app.use(passport.initialize());
+
+// ✅ DEBUG LOGGING
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
 
 // ✅ SERVE STATIC FILES (for uploaded images)
 // Prevent direct public access to sensitive document uploads. Document files under /uploads/documents
@@ -69,8 +90,19 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/mess', messRoutes);
 app.use('/api/admin', messAdminRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/roommate', roommateRoutes);
 
 app.use('/api/properties', propertyRoutes);
+
+// ✅ GLOBAL ERROR HANDLER (must be after all routes)
+app.use((err, req, res, next) => {
+  console.error(`[GlobalError] ${req.method} ${req.originalUrl}:`, err.stack || err.message);
+  const statusCode = err.statusCode || 500;
+  res.status(statusCode).json({
+    success: false,
+    message: err.message || 'Internal Server Error',
+  });
+});
 
 // ✅ PORT (KEEP 4000)
 const PORT = process.env.PORT || 4000;
@@ -79,7 +111,7 @@ const PORT = process.env.PORT || 4000;
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: 'http://localhost:3000',
+    origin: allowedOrigins,
     methods: ['GET', 'POST', 'PATCH']
   }
 });

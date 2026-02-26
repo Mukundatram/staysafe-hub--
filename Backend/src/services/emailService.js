@@ -236,6 +236,31 @@ const emailTemplates = {
     `
   }),
 
+  email_otp: (data) => ({
+    subject: `${data.otp} — Your StaySafe Hub verification code`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px 10px 0 0;">
+          <h1 style="color: white; margin: 0; text-align: center;">🏠 StaySafe Hub</h1>
+        </div>
+        <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
+          <h2 style="color: #333;">Verify your email</h2>
+          <p style="color: #666; font-size: 16px;">Hello <strong>${data.userName}</strong>,</p>
+          <p style="color: #666; font-size: 16px;">Use the code below to complete your registration:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <div style="display: inline-block; background: white; padding: 20px 40px; border-radius: 12px; border: 2px dashed #667eea;">
+              <span style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #333;">${data.otp}</span>
+            </div>
+          </div>
+          <p style="color: #999; font-size: 14px; text-align: center;">This code expires in 10 minutes. Do not share it with anyone.</p>
+        </div>
+        <p style="text-align: center; color: #999; font-size: 12px; margin-top: 20px;">
+          &copy; ${new Date().getFullYear()} StaySafe Hub. All rights reserved.
+        </p>
+      </div>
+    `
+  }),
+
   // Mess Subscription Templates
   mess_subscription_request: (data) => ({
     subject: `New Mess Subscription Request - ${data.messName}`,

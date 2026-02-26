@@ -18,7 +18,12 @@ router.get('/me', authenticate, async (req, res) => {
       college: user.college,
       studentId: user.studentId,
       avatar: user.avatar,
-      verificationState: user.verificationState
+      verificationState: user.verificationState,
+      verificationStatus: user.verificationStatus,
+      aadhaarVerification: {
+        verified: user.aadhaarVerification?.verified || false
+      },
+      createdAt: user.createdAt
     });
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
@@ -44,16 +49,18 @@ router.put('/me', authenticate, async (req, res) => {
     }
 
     const updated = await User.findByIdAndUpdate(req.user._id, { $set: updates }, { new: true, runValidators: true });
-    res.json({ message: 'Profile updated', user: {
-      id: updated._id,
-      name: updated.name,
-      email: updated.email,
-      phone: updated.phone,
-      phoneVerified: updated.phoneVerified,
-      college: updated.college,
-      studentId: updated.studentId,
-      avatar: updated.avatar
-    }});
+    res.json({
+      message: 'Profile updated', user: {
+        id: updated._id,
+        name: updated.name,
+        email: updated.email,
+        phone: updated.phone,
+        phoneVerified: updated.phoneVerified,
+        college: updated.college,
+        studentId: updated.studentId,
+        avatar: updated.avatar
+      }
+    });
   } catch (err) {
     console.error('Profile update error:', err);
     res.status(500).json({ message: 'Server error' });

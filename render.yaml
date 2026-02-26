@@ -1,0 +1,48 @@
+services:
+  # -------------------------
+  # BACKEND (Node.js API)
+  # -------------------------
+  - type: web
+    name: staysafe-backend
+    env: node
+    rootDir: Backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: "4000"
+      - key: FRONTEND_URL
+        fromService:
+          type: web
+          name: staysafe-frontend
+          envVar: RENDER_EXTERNAL_URL
+      # Critical Variables you MUST provide secrets for in the Render Dashboard
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+        
+  # -------------------------
+  # FRONTEND (React App)
+  # -------------------------
+  - type: web
+    name: staysafe-frontend
+    env: static
+    rootDir: Frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: build
+    # Add a fallback for client side routing
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: REACT_APP_API_URL
+        fromService:
+          type: web
+          name: staysafe-backend
+          envVar: RENDER_EXTERNAL_URL
