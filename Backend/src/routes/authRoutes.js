@@ -24,11 +24,21 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
       if (!email) return done(null, false);
 
       // Read role from state (passed via Google auth start)
-      const role = req.query.state || 'student';
+      let role = req.query.state || 'student';
       const validRole = AUTH.VALID_ROLES.includes(role) ? role : 'student';
+      role = validRole;
 
       let user = await User.findOne({ email });
       if (!user) {
+        // BUSINESS LOGIC: Enforce a single admin across the platform
+        if (role === 'admin') {
+          const adminExists = await User.findOne({ role: 'admin' });
+          if (adminExists) {
+            console.log(`Google Auth: Admin already exists. Downgrading new user ${email} to student.`);
+            role = 'student'; // Silently downgrade to student
+          }
+        }
+
         // Create new user with selected role — Google-verified email
         const randomPass = require('crypto').randomBytes(16).toString('hex');
         const passwordHash = await bcrypt.hash(randomPass, AUTH.BCRYPT_SALT_ROUNDS);
@@ -36,7 +46,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
           name: profile.displayName || email.split('@')[0],
           email,
           passwordHash,
-          role: validRole,
+          role: role,
           emailVerified: true   // Google already verified the email
         });
         await user.save();

@@ -40,6 +40,16 @@ async function createPendingUser({ name, email, password, role }) {
         throw err;
     }
 
+    // BUSINESS LOGIC: Enforce a single admin across the platform
+    if (role === 'admin') {
+        const adminExists = await User.findOne({ role: 'admin' });
+        if (adminExists) {
+            const err = new Error('Registration failed: An admin already exists on the platform.');
+            err.status = 403;
+            throw err;
+        }
+    }
+
     const passwordHash = await bcrypt.hash(password, AUTH.BCRYPT_SALT_ROUNDS);
     const otp = generateOtp();
     const otpHash = await bcrypt.hash(otp, 4); // light hash, OTP is short-lived
