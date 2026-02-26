@@ -5,6 +5,7 @@ services:
   - type: web
     name: staysafe-backend
     env: node
+    plan: free
     rootDir: Backend
     buildCommand: npm install
     startCommand: npm start
@@ -29,6 +30,7 @@ services:
   - type: web
     name: staysafe-frontend
     env: static
+    plan: free
     rootDir: Frontend
     buildCommand: npm install && npm run build
     staticPublishPath: build
