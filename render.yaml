@@ -12,10 +12,7 @@ services:
       - key: PORT
         value: "4000"
       - key: FRONTEND_URL
-        fromService:
-          type: web
-          name: staysafe-frontend
-          envVar: RENDER_EXTERNAL_URL
+        sync: false
       # Critical Variables you MUST provide secrets for in the Render Dashboard
       - key: MONGO_URI
         sync: false
@@ -42,7 +39,4 @@ services:
         destination: /index.html
     envVars:
       - key: REACT_APP_API_URL
-        fromService:
-          type: web
-          name: staysafe-backend
-          envVar: RENDER_EXTERNAL_URL
+        sync: false
