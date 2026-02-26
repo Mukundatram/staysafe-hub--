@@ -1,3 +1,4 @@
+import '../styles/OwnerDashboard.css';
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,6 +16,8 @@ import { LocationPicker, MapComponent } from '../../components/map';
 import { ChatModal, ChatList } from '../../components/chat';
 import documentService from '../../services/documentService';
 import analyticsService from '../../services/analyticsService';
+import ConfirmModal from '../../components/ui/ConfirmModal';
+import useDocumentTitle from '../../hooks/useDocumentTitle';
 import toast from 'react-hot-toast';
 import { connectSocket } from '../../services/socket';
 import {
@@ -45,6 +48,7 @@ import {
 } from 'react-icons/hi';
 
 const OwnerDashboard = () => {
+  useDocumentTitle('Owner Dashboard');
   const { user } = useAuth();
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -107,6 +111,8 @@ const OwnerDashboard = () => {
     genderPreference: 'any'
   });
   const [editingRoomId, setEditingRoomId] = useState(null);
+  const [confirmDeleteRoom, setConfirmDeleteRoom] = useState(null);
+  const [confirmDeleteMess, setConfirmDeleteMess] = useState(null);
 
   // AI Description Generator state
   const [showAIModal, setShowAIModal] = useState(false);
@@ -459,10 +465,14 @@ const OwnerDashboard = () => {
 
   const handleDeleteRoom = async (room) => {
     if (!currentRoomProperty) return;
-    if (!window.confirm('Are you sure you want to delete this room?')) return;
+    setConfirmDeleteRoom(room);
+  };
+
+  const confirmDeleteRoomAction = async () => {
+    if (!confirmDeleteRoom || !currentRoomProperty) return;
     try {
       setRoomsLoading(true);
-      await ownerService.deleteRoom(currentRoomProperty._id, room._id);
+      await ownerService.deleteRoom(currentRoomProperty._id, confirmDeleteRoom._id);
       const rooms = await ownerService.getRooms(currentRoomProperty._id);
       setRoomsForProperty(Array.isArray(rooms) ? rooms : []);
       toast.success('Room deleted');
@@ -471,6 +481,7 @@ const OwnerDashboard = () => {
       toast.error('Failed to delete room');
     } finally {
       setRoomsLoading(false);
+      setConfirmDeleteRoom(null);
     }
   };
 
@@ -907,15 +918,20 @@ const OwnerDashboard = () => {
   };
 
   const handleDeleteMessService = async (messId) => {
-    if (!window.confirm('Are you sure you want to delete this mess service?')) return;
+    setConfirmDeleteMess(messId);
+  };
 
+  const confirmDeleteMessAction = async () => {
+    if (!confirmDeleteMess) return;
     try {
-      await messService.delete(messId);
+      await messService.delete(confirmDeleteMess);
       toast.success('Mess service deleted successfully!');
       fetchMessServices();
     } catch (err) {
       console.error('Failed to delete mess service:', err);
       toast.error(err.response?.data?.message || 'Failed to delete mess service');
+    } finally {
+      setConfirmDeleteMess(null);
     }
   };
 
@@ -1647,43 +1663,7 @@ const OwnerDashboard = () => {
                         </div>
                       ))}
                     </div>
-                    <style>{`
-                  .subscribers-list {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 1rem;
-                  }
-                  .subscriber-item {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: flex-start;
-                    padding: 1rem 0;
-                    border-bottom: 1px solid var(--border-light);
-                  }
-                  .subscriber-info {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 0.25rem;
-                  }
-                  .subscriber-name {
-                    font-weight: 600;
-                  }
-                  .subscriber-email a {
-                    color: var(--primary);
-                    text-decoration: underline;
-                  }
-                  .subscriber-plan, .subscriber-date {
-                    font-size: 0.95em;
-                    color: var(--text-secondary);
-                  }
-                  .subscriber-status {
-                    margin-top: 0.25rem;
-                  }
-                  .subscriber-actions {
-                    display: flex;
-                    gap: 0.5rem;
-                  }
-                `}</style>
+                    
                   </Card>
                 )}
               </motion.div>
@@ -4281,6 +4261,26 @@ const OwnerDashboard = () => {
           overflow-y: auto;
         }
       `}</style>
+
+      <ConfirmModal
+        isOpen={!!confirmDeleteRoom}
+        onClose={() => setConfirmDeleteRoom(null)}
+        onConfirm={confirmDeleteRoomAction}
+        title="Delete Room?"
+        message="Are you sure you want to delete this room? This action cannot be undone."
+        confirmText="Delete Room"
+        variant="danger"
+      />
+
+      <ConfirmModal
+        isOpen={!!confirmDeleteMess}
+        onClose={() => setConfirmDeleteMess(null)}
+        onConfirm={confirmDeleteMessAction}
+        title="Delete Mess Service?"
+        message="Are you sure you want to delete this mess service? All associated data will be removed."
+        confirmText="Delete Service"
+        variant="danger"
+      />
     </div>
   );
 };

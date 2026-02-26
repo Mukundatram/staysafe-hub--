@@ -16,6 +16,7 @@ import {
   HiOutlineChevronDown,
   HiOutlineChevronUp
 } from 'react-icons/hi';
+import useDocumentTitle from '../hooks/useDocumentTitle';
 
 const faqs = [
   {
@@ -45,6 +46,7 @@ const faqs = [
 ];
 
 const ContactPage = () => {
+  useDocumentTitle('Contact Us');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -57,10 +59,10 @@ const ContactPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
-    
+
     // Simulate form submission
     await new Promise(resolve => setTimeout(resolve, 1500));
-    
+
     toast.success('Message sent! We\'ll get back to you within 24 hours.');
     setFormData({ name: '', email: '', subject: '', message: '' });
     setSubmitting(false);
@@ -85,7 +87,7 @@ const ContactPage = () => {
           </Badge>
           <h1>We're Here to Help</h1>
           <p>
-            Have questions, concerns, or feedback? Our support team is available 
+            Have questions, concerns, or feedback? Our support team is available
             24/7 to assist you with anything you need.
           </p>
         </motion.section>
@@ -220,8 +222,8 @@ const ContactPage = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 + index * 0.05 }}
               >
-                <Card 
-                  padding="lg" 
+                <Card
+                  padding="lg"
                   className={`faq-item ${expandedFaq === index ? 'expanded' : ''}`}
                   onClick={() => setExpandedFaq(expandedFaq === index ? null : index)}
                 >

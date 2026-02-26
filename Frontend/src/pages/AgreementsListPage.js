@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  FiFileText, 
-  FiCheck, 
-  FiClock, 
+import {
+  FiFileText,
+  FiCheck,
+  FiClock,
   FiAlertCircle,
   FiHome,
   FiFilter,
@@ -17,7 +17,9 @@ import {
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
+import Loading from '../components/ui/Loading';
 import agreementService from '../services/agreementService';
+import useDocumentTitle from '../hooks/useDocumentTitle';
 
 const statusConfig = {
   draft: { bg: '#64748b', label: 'Draft', icon: FiEdit3 },
@@ -30,6 +32,7 @@ const statusConfig = {
 };
 
 const AgreementsListPage = () => {
+  useDocumentTitle('Agreements');
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [agreements, setAgreements] = useState([]);
@@ -77,15 +80,7 @@ const AgreementsListPage = () => {
         justifyContent: 'center',
         background: 'var(--bg-secondary)'
       }}>
-        <div style={{
-          width: '48px',
-          height: '48px',
-          border: '4px solid var(--border-light)',
-          borderTopColor: 'var(--accent-primary)',
-          borderRadius: '50%',
-          animation: 'spin 1s linear infinite'
-        }} />
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        <Loading size="lg" text="Loading agreements..." />
       </div>
     );
   }
@@ -97,7 +92,7 @@ const AgreementsListPage = () => {
       padding: '2rem 1rem'
     }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-        
+
         {/* Header */}
         <div style={{
           display: 'flex',
@@ -146,7 +141,7 @@ const AgreementsListPage = () => {
           boxShadow: 'var(--shadow-sm)'
         }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1rem' }}>
-            
+
             {/* Filter Label */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)' }}>
               <FiFilter size={18} />
@@ -228,7 +223,7 @@ const AgreementsListPage = () => {
               agreements.map((agreement, index) => {
                 const status = statusConfig[agreement.status] || statusConfig.draft;
                 const StatusIcon = status.icon;
-                
+
                 return (
                   <motion.div
                     key={agreement._id}
@@ -237,7 +232,7 @@ const AgreementsListPage = () => {
                     exit={{ opacity: 0, y: -20 }}
                     transition={{ delay: index * 0.05 }}
                   >
-                    <Link 
+                    <Link
                       to={`/agreements/${agreement._id}`}
                       style={{ textDecoration: 'none' }}
                     >
@@ -254,14 +249,14 @@ const AgreementsListPage = () => {
                         cursor: 'pointer',
                         boxShadow: 'var(--shadow-sm)'
                       }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                        e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-                        e.currentTarget.style.borderColor = 'var(--border-light)';
-                      }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
+                          e.currentTarget.style.borderColor = 'var(--accent-primary)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
+                          e.currentTarget.style.borderColor = 'var(--border-light)';
+                        }}
                       >
                         {/* Property Image / Icon */}
                         <div style={{
@@ -276,7 +271,7 @@ const AgreementsListPage = () => {
                           overflow: 'hidden'
                         }}>
                           {agreement.property?.images?.[0] ? (
-                            <img 
+                            <img
                               src={`${process.env.REACT_APP_API_URL || 'http://localhost:4000'}${agreement.property.images[0]}`}
                               alt="Property"
                               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
@@ -364,8 +359,8 @@ const AgreementsListPage = () => {
                             fontWeight: '600',
                             fontSize: '0.875rem'
                           }}>
-                            {(agreement.owner?._id === user?._id 
-                              ? agreement.student?.name?.[0] 
+                            {(agreement.owner?._id === user?._id
+                              ? agreement.student?.name?.[0]
                               : agreement.owner?.name?.[0]) || '?'}
                           </div>
                           <div>
@@ -382,8 +377,8 @@ const AgreementsListPage = () => {
                               color: 'var(--text-primary)',
                               margin: 0
                             }}>
-                              {agreement.owner?._id === user?._id 
-                                ? agreement.student?.name 
+                              {agreement.owner?._id === user?._id
+                                ? agreement.student?.name
                                 : agreement.owner?.name || 'Unknown'}
                             </p>
                           </div>
@@ -447,7 +442,7 @@ const AgreementsListPage = () => {
                     marginLeft: 'auto',
                     marginRight: 'auto'
                   }}>
-                    {user?.role === 'owner' 
+                    {user?.role === 'owner'
                       ? "You haven't created any rental agreements yet. Agreements will appear here when students book your properties."
                       : "You don't have any rental agreements yet. Book a property to get started!"}
                   </p>
@@ -488,25 +483,25 @@ const AgreementsListPage = () => {
             gap: '1rem',
             marginTop: '2rem'
           }}>
-            <SummaryCard 
+            <SummaryCard
               icon={FiCheck}
               label="Active"
               count={agreements.filter(a => a.status === 'active').length}
               color="#10b981"
             />
-            <SummaryCard 
+            <SummaryCard
               icon={FiClock}
               label="Pending"
               count={agreements.filter(a => a.status.includes('pending')).length}
               color="#f59e0b"
             />
-            <SummaryCard 
+            <SummaryCard
               icon={FiEdit3}
               label="Draft"
               count={agreements.filter(a => a.status === 'draft').length}
               color="#64748b"
             />
-            <SummaryCard 
+            <SummaryCard
               icon={FiAlertCircle}
               label="Expired/Terminated"
               count={agreements.filter(a => ['expired', 'terminated', 'cancelled'].includes(a.status)).length}

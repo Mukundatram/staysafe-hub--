@@ -1,8 +1,10 @@
+import '../styles/StudentDashboard.css';
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { authService, bookingService } from '../../services/propertyService';
 import messService from '../../services/messService';
+import roommateService from '../../services/roommateService';
 import { useAuth } from '../../context/AuthContext';
 import Loading from '../../components/ui/Loading';
 import Card from '../../components/ui/Card';
@@ -10,6 +12,8 @@ import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import EmptyState from '../../components/ui/EmptyState';
 import ChatModal from '../../components/chat/ChatModal';
+import ConfirmModal from '../../components/ui/ConfirmModal';
+import useDocumentTitle from '../../hooks/useDocumentTitle';
 import { ReviewModal } from '../../components/review';
 import { reviewService } from '../../services/propertyService';
 import documentService from '../../services/documentService';
@@ -28,12 +32,15 @@ import {
   HiOutlineLogout,
   HiOutlineX,
   HiOutlineBadgeCheck,
-  HiOutlineArrowRight
+  HiOutlineArrowRight,
+  HiOutlineUserGroup,
+  HiOutlineCheck
 } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import { connectSocket } from '../../services/socket';
 
 const StudentDashboard = () => {
+  useDocumentTitle('Dashboard');
   useAuth(); // Ensure user is authenticated
   const [dashboardData, setDashboardData] = useState(null);
   const [messSubscriptions, setMessSubscriptions] = useState([]);
@@ -56,14 +63,20 @@ const StudentDashboard = () => {
   }, []);
 
   const handleCancelSubscription = async (subscriptionId) => {
-    if (!window.confirm('Are you sure you want to cancel this subscription?')) return;
+    setConfirmCancelSub(subscriptionId);
+  };
+
+  const confirmCancelSubAction = async () => {
+    if (!confirmCancelSub) return;
     try {
-      await messService.cancelSubscription(subscriptionId);
+      await messService.cancelSubscription(confirmCancelSub);
       toast.success('Subscription cancelled successfully');
       fetchMessSubscriptions();
     } catch (err) {
       console.error('Failed to cancel subscription:', err);
       toast.error(err.response?.data?.error || 'Failed to cancel subscription');
+    } finally {
+      setConfirmCancelSub(null);
     }
   };
 
@@ -81,6 +94,9 @@ const StudentDashboard = () => {
   const [selectedBookingForReview, setSelectedBookingForReview] = useState(null);
   const [reviewedBookings, setReviewedBookings] = useState(new Set());
   const [verificationStatus, setVerificationStatus] = useState(null);
+  const [roommateInvites, setRoommateInvites] = useState([]);
+  const [joinRequests, setJoinRequests] = useState([]); // Room share join requests
+  const [confirmCancelSub, setConfirmCancelSub] = useState(null);
 
   const fetchVerificationStatus = useCallback(async () => {
     try {
@@ -91,10 +107,54 @@ const StudentDashboard = () => {
     }
   }, []);
 
+  const fetchRoommateInvites = useCallback(async () => {
+    try {
+      const invites = await roommateService.getPendingRoommateInvites();
+      setRoommateInvites(invites || []);
+    } catch (err) {
+      console.error('Failed to fetch roommate invites:', err);
+    }
+  }, []);
+
+  const handleRoommateInviteAction = async (bookingId, action) => {
+    try {
+      await roommateService.confirmRoommateBooking(bookingId, action);
+      toast.success(action === 'confirm' ? 'Booking confirmed! 🎉' : 'Invite declined');
+      fetchRoommateInvites(); // Refresh invites
+      fetchDashboardData(); // Refresh bookings
+    } catch (err) {
+      console.error('Failed to respond to invite:', err);
+      toast.error(err.response?.data?.message || 'Failed to respond to invite');
+    }
+  };
+
+  const fetchJoinRequests = useCallback(async () => {
+    try {
+      const data = await roommateService.getPendingJoinRequests();
+      setJoinRequests(data.requests || []);
+    } catch (err) {
+      console.error('Failed to fetch join requests:', err);
+    }
+  }, []);
+
+  const handleRespondJoin = async (bookingId, requestId, action) => {
+    try {
+      await roommateService.respondJoinRequest(bookingId, requestId, action);
+      toast.success(action === 'accept' ? 'Join request accepted! 🎉' : 'Join request declined');
+      fetchJoinRequests();
+      fetchDashboardData();
+    } catch (err) {
+      console.error('Failed to respond to join request:', err);
+      toast.error(err.response?.data?.message || 'Failed to respond to request');
+    }
+  };
+
   useEffect(() => {
     fetchDashboardData();
     fetchVerificationStatus();
     fetchMessSubscriptions();
+    fetchRoommateInvites();
+    fetchJoinRequests();
     // Connect socket and listen for mess subscription events
     let socket;
     try {
@@ -115,6 +175,10 @@ const StudentDashboard = () => {
           toast.success('Your mess subscription was approved');
           fetchMessSubscriptions();
         });
+        socket.on('roommate:booking:invite', () => {
+          toast.info('New roommate booking invite received!');
+          fetchRoommateInvites();
+        });
       }
     } catch (e) {
       console.error('Socket init error (student):', e);
@@ -125,9 +189,10 @@ const StudentDashboard = () => {
         socket.off('mess:subscription:created');
         socket.off('mess:subscription:cancelled');
         socket.off('mess:subscription:approved');
+        socket.off('roommate:booking:invite');
       }
     };
-  }, [fetchVerificationStatus, fetchMessSubscriptions]);
+  }, [fetchVerificationStatus, fetchMessSubscriptions, fetchRoommateInvites, fetchJoinRequests]);
 
   const fetchDashboardData = async () => {
     try {
@@ -370,6 +435,229 @@ const StudentDashboard = () => {
         <div className="dashboard-grid">
           {/* Main Content */}
           <div className="dashboard-main">
+            {/* Pending Roommate Invites */}
+            {roommateInvites.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.08 }}
+              >
+                <Card padding="lg" className="roommate-invites-card">
+                  <div className="card-header">
+                    <h2>
+                      <HiOutlineUserGroup size={24} />
+                      Roommate Booking Invites
+                    </h2>
+                    <Badge variant="warning">{roommateInvites.length} Pending</Badge>
+                  </div>
+                  <div className="invites-list">
+                    {roommateInvites.map((invite, idx) => {
+                      const initiator = invite.user;
+                      const property = invite.property;
+                      return (
+                        <motion.div
+                          key={invite._id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: idx * 0.05 }}
+                          className="invite-item"
+                        >
+                          <div className="invite-info">
+                            <div className="invite-header">
+                              <HiOutlineUserGroup size={20} />
+                              <h4>{initiator?.name || 'Roommate'} invited you to book together</h4>
+                            </div>
+                            <div className="invite-property">
+                              <h5>{property?.title || 'Property'}</h5>
+                              <p>
+                                <HiOutlineLocationMarker size={14} />
+                                {property?.location || 'Location'}
+                              </p>
+                            </div>
+                            <div className="invite-meta">
+                              <span><strong>Move-in:</strong> {format(new Date(invite.startDate), 'MMM d, yyyy')}</span>
+                              <span><strong>Rent:</strong> ₹{property?.rent?.toLocaleString() || 'N/A'}/mo</span>
+                              <span><strong>Members:</strong> {invite.membersCount || 2}</span>
+                            </div>
+                          </div>
+                          <div className="invite-actions">
+                            <Button
+                              variant="success"
+                              size="sm"
+                              leftIcon={<HiOutlineCheck size={16} />}
+                              onClick={() => handleRoommateInviteAction(invite._id, 'confirm')}
+                            >
+                              Accept
+                            </Button>
+                            <Button
+                              variant="danger"
+                              size="sm"
+                              leftIcon={<HiOutlineX size={16} />}
+                              onClick={() => handleRoommateInviteAction(invite._id, 'decline')}
+                            >
+                              Decline
+                            </Button>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </Card>
+                
+              </motion.div>
+            )}
+
+            {/* Room Share Join Requests */}
+            {joinRequests.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+              >
+                <Card padding="lg" className="join-requests-card">
+                  <div className="card-header">
+                    <h2>
+                      <HiOutlineUserGroup size={24} />
+                      Room Share Requests
+                    </h2>
+                    <Badge variant="info">{joinRequests.length} Pending</Badge>
+                  </div>
+                  <div className="requests-list">
+                    {joinRequests.map((request, idx) => (
+                      <motion.div
+                        key={request._id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.04 }}
+                        className="request-item"
+                      >
+                        <div className="request-info">
+                          <div className="request-header">
+                            <HiOutlineUserGroup size={20} />
+                            <h4>{request.requester?.name || 'User'} wants to join your booking</h4>
+                          </div>
+                          <div className="request-property">
+                            <h5>{request.property?.title || 'Property'}</h5>
+                            <p>
+                              <HiOutlineLocationMarker size={14} />
+                              {request.property?.location || 'Location'}
+                            </p>
+                          </div>
+                          {request.message && (
+                            <div className="request-message">
+                              <p>"{request.message}"</p>
+                            </div>
+                          )}
+                          <div className="request-meta">
+                            <span>
+                              <HiOutlineCalendar size={14} />
+                              Requested {format(new Date(request.requestedAt), 'MMM d, yyyy')}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="request-actions">
+                          <Button
+                            variant="success"
+                            size="sm"
+                            leftIcon={<HiOutlineCheck size={16} />}
+                            onClick={() => handleRespondJoin(request.bookingId, request._id, 'accept')}
+                          >
+                            Accept
+                          </Button>
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            leftIcon={<HiOutlineX size={16} />}
+                            onClick={() => handleRespondJoin(request.bookingId, request._id, 'decline')}
+                          >
+                            Decline
+                          </Button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </Card>
+                <style>{`
+                  .join-requests-card {
+                    border: 2px solid var(--info, #3b82f6);
+                    background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(14, 165, 233, 0.05) 100%);
+                  }
+                  .requests-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1rem;
+                  }
+                  .request-item {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: flex-start;
+                    padding: 1.25rem;
+                    background: white;
+                    border-radius: 8px;
+                    border: 1px solid var(--border-light);
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+                  }
+                  .request-info {
+                    flex: 1;
+                  }
+                  .request-header {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    color: var(--info, #3b82f6);
+                    margin-bottom: 0.75rem;
+                  }
+                  .request-header h4 {
+                    margin: 0;
+                    font-size: 1rem;
+                    font-weight: 600;
+                  }
+                  .request-property h5 {
+                    margin: 0 0 0.25rem 0;
+                    font-size: 0.95rem;
+                    color: var(--text-primary);
+                  }
+                  .request-property p {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.25rem;
+                    color: var(--text-secondary);
+                    font-size: 0.875rem;
+                    margin: 0 0 0.5rem 0;
+                  }
+                  .request-message {
+                    padding: 0.75rem;
+                    background: rgba(59, 130, 246, 0.05);
+                    border-left: 3px solid var(--info, #3b82f6);
+                    border-radius: 4px;
+                    margin: 0.75rem 0;
+                  }
+                  .request-message p {
+                    margin: 0;
+                    font-style: italic;
+                    color: var(--text-secondary);
+                    font-size: 0.9rem;
+                  }
+                  .request-meta {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.375rem;
+                    font-size: 0.85rem;
+                    color: var(--text-tertiary);
+                  }
+                  .request-meta svg {
+                    flex-shrink: 0;
+                  }
+                  .request-actions {
+                    display: flex;
+                    gap: 0.5rem;
+                    margin-left: 1rem;
+                    flex-direction: column;
+                  }
+                `}</style>
+              </motion.div>
+            )}
+
             {/* Mess Subscriptions */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -1349,16 +1637,29 @@ const StudentDashboard = () => {
           </motion.div>
         )}
       </AnimatePresence>
-      <ReviewModal
-        isOpen={reviewModalOpen}
-        onClose={() => {
-          setReviewModalOpen(false);
-          setReviewMessSubscription(null);
-        }}
-        messSubscription={reviewMessSubscription}
-        onReviewSubmitted={() => {
-          fetchMessSubscriptions(); // Refresh to potentially update UI
-        }}
+      {/* Review Modal for Mess */}
+      {reviewMessSubscription && (
+        <ReviewModal
+          isOpen={reviewModalOpen}
+          onClose={() => {
+            setReviewModalOpen(false);
+            setReviewMessSubscription(null);
+          }}
+          messSubscription={reviewMessSubscription}
+          onReviewSubmitted={() => {
+            fetchMessSubscriptions(); // Refresh to potentially update UI
+          }}
+        />
+      )}
+
+      <ConfirmModal
+        isOpen={!!confirmCancelSub}
+        onClose={() => setConfirmCancelSub(null)}
+        onConfirm={confirmCancelSubAction}
+        title="Cancel Subscription?"
+        message="Are you sure you want to cancel this mess subscription? This action cannot be undone."
+        confirmText="Cancel Subscription"
+        variant="warning"
       />
     </div>
   );

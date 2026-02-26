@@ -3,11 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { propertyService, bookingService } from '../../services/propertyService';
 import messService from '../../services/messService';
+import roommateService from '../../services/roommateService';
 import { useAuth } from '../../context/AuthContext';
 import Loading from '../../components/ui/Loading';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Card from '../../components/ui/Card';
+import AdditionalMemberForm from '../../components/booking/AdditionalMemberForm';
 import toast from 'react-hot-toast';
 import { format, addMonths } from 'date-fns';
 import {
@@ -19,10 +21,13 @@ import {
   HiOutlineHome,
   HiOutlineCake,
   HiOutlineDocumentText,
-  HiOutlineCheckCircle
+  HiOutlineCheckCircle,
+  HiOutlineUsers
 } from 'react-icons/hi';
+import useDocumentTitle from '../../hooks/useDocumentTitle';
 
 const BookingPage = () => {
+  useDocumentTitle('Book Property');
   const { propertyId } = useParams();
   const navigate = useNavigate();
   useAuth(); // Ensure user is authenticated
@@ -41,10 +46,20 @@ const BookingPage = () => {
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const [roomsCount, setRoomsCount] = useState(1);
   const [membersCount, setMembersCount] = useState(1);
+  const [additionalMembers, setAdditionalMembers] = useState([]);
   const [includeMess, setIncludeMess] = useState(false);
   const [messOptions, setMessOptions] = useState([]);
   const [selectedMessId, setSelectedMessId] = useState(null);
   const [selectedMessPlan, setSelectedMessPlan] = useState('monthly-all');
+
+  // Joint booking with roommate
+  const [bookWithRoommate, setBookWithRoommate] = useState(false);
+  const [connectedRoommates, setConnectedRoommates] = useState([]);
+  const [selectedRoommateId, setSelectedRoommateId] = useState(null);
+  const [loadingRoommates, setLoadingRoommates] = useState(false);
+
+  // Room share discovery (open to roommate)
+  const [openToRoommate, setOpenToRoommate] = useState(false);
 
   useEffect(() => {
     fetchProperty();
@@ -69,6 +84,58 @@ const BookingPage = () => {
     loadMess();
   }, [property]);
 
+  // Dynamically manage additional members array based on membersCount
+  useEffect(() => {
+    if (membersCount <= 1) {
+      setAdditionalMembers([]);
+    } else {
+      const needed = membersCount - 1; // -1 because first member is the main booker
+      setAdditionalMembers(prev => {
+        const current = [...prev];
+        // Add new empty members if needed
+        while (current.length < needed) {
+          current.push({
+            fullName: '',
+            phoneNumber: '',
+            identityProofType: 'Aadhar Card',
+            identityProofFile: null
+          });
+        }
+        // Remove extra members if count decreased
+        return current.slice(0, needed);
+      });
+    }
+  }, [membersCount]);
+
+  // Fetch connected roommates when bookWithRoommate is enabled
+  useEffect(() => {
+    if (bookWithRoommate) {
+      fetchConnectedRoommates();
+    }
+  }, [bookWithRoommate]);
+
+  const fetchConnectedRoommates = async () => {
+    try {
+      setLoadingRoommates(true);
+      const data = await roommateService.getConnections();
+      setConnectedRoommates(data.connections || []);
+    } catch (error) {
+      console.error('Failed to fetch roommates:', error);
+      toast.error('Failed to load connected roommates');
+    } finally {
+      setLoadingRoommates(false);
+    }
+  };
+
+  // Handler for updating individual member data
+  const handleMemberChange = (index, updatedMember) => {
+    setAdditionalMembers(prev => {
+      const updated = [...prev];
+      updated[index] = updatedMember;
+      return updated;
+    });
+  };
+
   const fetchProperty = async () => {
     try {
       setLoading(true);
@@ -86,10 +153,11 @@ const BookingPage = () => {
   const handleSubmit = async () => {
     try {
       // Client-side validation: ensure selected room has enough availability and members fit capacity
-      const payload = {
+      const basePayload = {
         startDate: formData.startDate,
         endDate: formData.endDate,
         mealsSelected: formData.mealsSelected,
+        openToRoommate: openToRoommate,
       };
 
       if (selectedRoomId) {
@@ -112,9 +180,9 @@ const BookingPage = () => {
           return;
         }
 
-        payload.roomId = selectedRoomId;
-        payload.roomsCount = roomsCount;
-        payload.membersCount = membersCount;
+        basePayload.roomId = selectedRoomId;
+        basePayload.roomsCount = roomsCount;
+        basePayload.membersCount = membersCount;
       }
 
       // Attach mess selection if requested
@@ -127,16 +195,73 @@ const BookingPage = () => {
           toast.error('Please select a mess plan');
           return;
         }
-        payload.messId = selectedMessId;
-        payload.messPlan = selectedMessPlan;
+        basePayload.messId = selectedMessId;
+        basePayload.messPlan = selectedMessPlan;
         // align mess subscription start with booking start date by default
-        payload.messStartDate = formData.startDate;
+        basePayload.messStartDate = formData.startDate;
       }
 
-      setSubmitting(true);
-      await bookingService.create(propertyId, payload);
-      setBookingComplete(true);
-      toast.success('Booking request submitted successfully!');
+      // Validate additional members if membersCount > 1
+      if (membersCount > 1 && !bookWithRoommate) {
+        const missingInfo = [];
+        additionalMembers.forEach((member, index) => {
+          if (!member.fullName) missingInfo.push(`Member ${index + 2}: Full Name required`);
+          if (!member.phoneNumber) missingInfo.push(`Member ${index + 2}: Phone Number required`);
+          else if (!/^\d{10}$/.test(member.phoneNumber)) missingInfo.push(`Member ${index + 2}: Phone must be 10 digits`);
+          if (!member.identityProofFile) missingInfo.push(`Member ${index + 2}: ID proof upload required`);
+        });
+
+        if (missingInfo.length > 0) {
+          toast.error(missingInfo[0]); // Show first error
+          return;
+        }
+
+        // Use FormData for file upload
+        const formDataObj = new FormData();
+
+        // Append all base booking data
+        Object.keys(basePayload).forEach(key => {
+          formDataObj.append(key, basePayload[key]);
+        });
+
+        // Append additional members data with indexed keys
+        additionalMembers.forEach((member, index) => {
+          formDataObj.append(`member_${index}_fullName`, member.fullName);
+          formDataObj.append(`member_${index}_phoneNumber`, member.phoneNumber);
+          formDataObj.append(`member_${index}_identityProofType`, member.identityProofType);
+          if (member.identityProofFile) {
+            formDataObj.append(`member_${index}_idFile`, member.identityProofFile);
+          }
+        });
+
+        setSubmitting(true);
+        // Send FormData (backend should handle multipart/form-data)
+        await bookingService.createWithFiles(propertyId, formDataObj);
+        setBookingComplete(true);
+        toast.success('Booking request submitted successfully!');
+      } else if (bookWithRoommate) {
+        // Joint booking with roommate
+        if (!selectedRoommateId) {
+          toast.error('Please select a roommate to book with');
+          return;
+        }
+
+        setSubmitting(true);
+        basePayload.roommateId = selectedRoommateId;
+        // Set membersCount to 2 for joint booking if not already set
+        if (!basePayload.membersCount || basePayload.membersCount < 2) {
+          basePayload.membersCount = 2;
+        }
+        await roommateService.bookWithRoommate(propertyId, basePayload);
+        setBookingComplete(true);
+        toast.success('Joint booking created! Waiting for roommate confirmation.');
+      } else {
+        // Single member - use regular JSON payload
+        setSubmitting(true);
+        await bookingService.create(propertyId, basePayload);
+        setBookingComplete(true);
+        toast.success('Booking request submitted successfully!');
+      }
     } catch (err) {
       console.error('Booking failed:', err);
       toast.error(err.response?.data?.message || 'Failed to create booking');
@@ -386,15 +511,127 @@ const BookingPage = () => {
                           <div>
                             <div className="form-group">
                               <label>Number of Rooms</label>
-                              <input type="number" min={1} max={room.availableRooms || 1} value={roomsCount} onChange={e => setRoomsCount(Math.max(1, parseInt(e.target.value)||1))} />
+                              <input type="number" min={1} max={room.availableRooms || 1} value={roomsCount} onChange={e => setRoomsCount(Math.max(1, parseInt(e.target.value) || 1))} />
                               <span className="input-hint">Max {room.availableRooms} rooms available</span>
                             </div>
 
                             <div className="form-group">
                               <label>Total Members</label>
-                              <input type="number" min={1} value={membersCount} onChange={e => setMembersCount(Math.max(1, parseInt(e.target.value)||1))} />
+                              <input type="number" min={1} value={membersCount} onChange={e => setMembersCount(Math.max(1, parseInt(e.target.value) || 1))} />
                               <span className="input-hint">Max per room: {room.maxOccupancy} — total max: {room.maxOccupancy * roomsCount}</span>
                             </div>
+
+                            {/* Book with Roommate Option */}
+                            <div className="form-group">
+                              <label>
+                                <input
+                                  type="checkbox"
+                                  checked={bookWithRoommate}
+                                  onChange={(e) => {
+                                    setBookWithRoommate(e.target.checked);
+                                    if (e.target.checked) {
+                                      // Auto-set members to 2 when booking with roommate
+                                      setMembersCount(2);
+                                    }
+                                  }}
+                                />
+                                <span style={{ marginLeft: '0.5rem', fontWeight: '500' }}>Book with a connected roommate</span>
+                              </label>
+                              {bookWithRoommate && (
+                                <p className="input-hint" style={{ marginTop: '0.5rem' }}>
+                                  Split the cost and book together with your connected roommate
+                                </p>
+                              )}
+                            </div>
+
+                            {bookWithRoommate && (
+                              <div>
+                                <div className="form-group">
+                                  <label>Select Roommate</label>
+                                  {loadingRoommates ? (
+                                    <p className="input-hint">Loading roommates...</p>
+                                  ) : connectedRoommates.length === 0 ? (
+                                    <p className="input-hint" style={{ color: 'var(--error, #ef4444)' }}>
+                                      No connected roommates found. Connect with roommates first.
+                                    </p>
+                                  ) : (
+                                    <select
+                                      value={selectedRoommateId || ''}
+                                      onChange={(e) => setSelectedRoommateId(e.target.value)}
+                                    >
+                                      <option value="">-- Select a roommate --</option>
+                                      {connectedRoommates.map((conn) => {
+                                        const roommate = conn.sender._id === localStorage.getItem('userId')
+                                          ? conn.receiver
+                                          : conn.sender;
+                                        return (
+                                          <option key={roommate._id} value={roommate._id}>
+                                            {roommate.name} • {conn.senderProfile?.city || conn.receiverProfile?.city || 'Location N/A'}
+                                          </option>
+                                        );
+                                      })}
+                                    </select>
+                                  )}
+                                </div>
+                                {selectedRoommateId && (
+                                  <div className="roommate-booking-notice" style={{
+                                    background: 'var(--bg-tertiary, #f0f9ff)',
+                                    padding: '1rem',
+                                    borderRadius: '8px',
+                                    marginTop: '1rem',
+                                    border: '1px solid var(--border-light, #e5e7eb)'
+                                  }}>
+                                    <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary, #6b7280)' }}>
+                                      📩 Your roommate will receive an invitation to confirm this joint booking
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Open to Roommate - Only for solo bookings */}
+                            {membersCount === 1 && !bookWithRoommate && (
+                              <div className="form-group">
+                                <label>
+                                  <input
+                                    type="checkbox"
+                                    checked={openToRoommate}
+                                    onChange={(e) => setOpenToRoommate(e.target.checked)}
+                                  />
+                                  <span style={{ marginLeft: '0.5rem', fontWeight: '500' }}>
+                                    I'm open to sharing this room with a roommate
+                                  </span>
+                                </label>
+                                {openToRoommate && (
+                                  <p className="input-hint" style={{ marginTop: '0.5rem' }}>
+                                    ✨ Your booking will appear in "Find Room Shares" for other students to join
+                                  </p>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Additional Member Forms - Only shown when members > 1 AND NOT booking with roommate */}
+                            {membersCount > 1 && !bookWithRoommate && (
+                              <div className="additional-members-section">
+                                <div className="section-header">
+                                  <HiOutlineUsers size={20} />
+                                  <h3>Additional Members Information</h3>
+                                  <span className="member-count-badge">{additionalMembers.length} member{additionalMembers.length !== 1 ? 's' : ''}</span>
+                                </div>
+                                <p className="section-description">
+                                  Please provide details for all additional members who will be staying
+                                </p>
+                                {additionalMembers.map((member, index) => (
+                                  <AdditionalMemberForm
+                                    key={index}
+                                    memberIndex={index}
+                                    memberData={member}
+                                    onChange={handleMemberChange}
+                                  />
+                                ))}
+                              </div>
+                            )}
+
                             <div className="form-group">
                               <label>
                                 <input type="checkbox" checked={includeMess} onChange={e => setIncludeMess(e.target.checked)} /> Include Mess Service
@@ -523,16 +760,16 @@ const BookingPage = () => {
                   <Button variant="secondary" onClick={() => setStep(2)}>
                     Back
                   </Button>
-                    <Button
-                      variant="primary"
-                      size="lg"
-                      onClick={handleSubmit}
-                      disabled={isInvalidSelection || isInvalidMessSelection || submitting}
-                      isLoading={submitting}
-                      leftIcon={<HiOutlineShieldCheck size={20} />}
-                    >
-                      Confirm Booking
-                    </Button>
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    onClick={handleSubmit}
+                    disabled={isInvalidSelection || isInvalidMessSelection || submitting}
+                    isLoading={submitting}
+                    leftIcon={<HiOutlineShieldCheck size={20} />}
+                  >
+                    Confirm Booking
+                  </Button>
                 </div>
               </motion.div>
             )}
@@ -547,7 +784,7 @@ const BookingPage = () => {
           >
             <Card padding="lg">
               <h3>Booking Summary</h3>
-              
+
               <div className="property-preview">
                 <img
                   src="https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=200&h=150&fit=crop"
@@ -972,6 +1209,47 @@ const BookingPage = () => {
           font-size: 1.125rem;
           margin-bottom: 2rem;
         }
+
+        /* Additional Members Section */
+        .additional-members-section {
+          margin-top: 2rem;
+          padding: 1.5rem;
+          background: var(--bg-tertiary);
+          border: 1px solid var(--border-light);
+          border-radius: var(--radius-lg);
+        }
+
+        .section-header {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          margin-bottom: 0.5rem;
+        }
+
+        .section-header h3 {
+          flex: 1;
+          margin: 0;
+          font-size: 1.125rem;
+          font-weight: 600;
+          color: var(--text-primary);
+        }
+
+        .member-count-badge {
+          padding: 0.375rem 0.75rem;
+          background: var(--accent-primary-alpha);
+          color: var(--accent-primary);
+          border-radius: var(--radius-full);
+          font-size: 0.875rem;
+          font-weight: 600;
+        }
+
+        .section-description {
+          margin-bottom: 1.5rem;
+          color: var(--text-secondary);
+          font-size: 0.875rem;
+        }
+
+        /* Success Page */
 
         .success-details {
           width: 100%;

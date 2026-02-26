@@ -1,14 +1,16 @@
+import '../styles/PropertiesPage.css';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { propertyService } from '../../services/propertyService';
 import PropertyCard from '../../components/property/PropertyCard';
-import Loading from '../../components/ui/Loading';
 import EmptyState from '../../components/ui/EmptyState';
+import SkeletonCard from '../../components/ui/SkeletonCard';
+import useDocumentTitle from '../../hooks/useDocumentTitle';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 import { MapComponent } from '../../components/map';
-import { 
+import {
   HiOutlineSearch,
   HiOutlineAdjustments,
   HiOutlineX,
@@ -37,6 +39,7 @@ const searchLocation = async (query) => {
 };
 
 const PropertiesPage = () => {
+  useDocumentTitle('Properties');
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [properties, setProperties] = useState([]);
@@ -44,10 +47,10 @@ const PropertiesPage = () => {
   const [error, setError] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'map'
-  
+
   // Pagination state
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
-  
+
   // Location search states
   const [locationSuggestions, setLocationSuggestions] = useState([]);
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
@@ -84,45 +87,45 @@ const PropertiesPage = () => {
     }
 
     setIsDetectingLocation(true);
-    
+
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
-        
+
         // Reverse geocode to get location name
         try {
           const response = await fetch(
             `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
           );
           const data = await response.json();
-          
+
           // Build a more descriptive location name
           const address = data.address || {};
           const locationParts = [];
-          
+
           // Add suburb/neighbourhood if available
           if (address.suburb || address.neighbourhood) {
             locationParts.push(address.suburb || address.neighbourhood);
           }
-          
+
           // Add city/town/village
           if (address.city || address.town || address.village) {
             locationParts.push(address.city || address.town || address.village);
           }
-          
+
           // Fallback to state if nothing else
           if (locationParts.length === 0 && address.state) {
             locationParts.push(address.state);
           }
-          
-          const locationName = locationParts.length > 0 
-            ? locationParts.join(', ') 
+
+          const locationName = locationParts.length > 0
+            ? locationParts.join(', ')
             : 'Your Location';
-          
+
           // Update the location filter with the detected location name
           setFilters(prev => ({ ...prev, location: locationName }));
           setSelectedLocationCoords({ lat: latitude, lng: longitude });
-          
+
           // Show filters panel so user can see the location was set
           setShowFilters(true);
         } catch (error) {
@@ -132,13 +135,13 @@ const PropertiesPage = () => {
           setFilters(prev => ({ ...prev, location: 'My Location' }));
           setShowFilters(true);
         }
-        
+
         setIsDetectingLocation(false);
       },
       (error) => {
         console.error('Error getting location:', error);
         setIsDetectingLocation(false);
-        
+
         // Show user-friendly error messages
         switch (error.code) {
           case error.PERMISSION_DENIED:
@@ -163,7 +166,7 @@ const PropertiesPage = () => {
       setLoading(true);
       setError(null);
       const data = await propertyService.search(searchFilters);
-      
+
       // Handle both old format (array) and new format (object with properties)
       if (Array.isArray(data)) {
         setProperties(data);
@@ -275,7 +278,7 @@ const PropertiesPage = () => {
   const handleLocationInputChange = useCallback(async (value) => {
     setFilters((prev) => ({ ...prev, location: value }));
     setSelectedLocationCoords(null); // Reset coords when typing
-    
+
     if (value.length >= 3) {
       const results = await searchLocation(value);
       setLocationSuggestions(results);
@@ -290,15 +293,15 @@ const PropertiesPage = () => {
   const handleSelectLocationSuggestion = (suggestion) => {
     const lat = parseFloat(suggestion.lat);
     const lng = parseFloat(suggestion.lon);
-    
+
     // Extract short location name
     const shortName = suggestion.display_name.split(',').slice(0, 2).join(',');
-    
+
     setFilters((prev) => ({ ...prev, location: shortName }));
     setSelectedLocationCoords({ lat, lng });
     setLocationSuggestions([]);
     setShowLocationSuggestions(false);
-    
+
     // Switch to map view to show the location
     setViewMode('map');
   };
@@ -329,7 +332,13 @@ const PropertiesPage = () => {
     return (
       <div className="properties-page">
         <div className="container">
-          <Loading size="lg" text="Loading properties..." />
+          <div className="page-header" style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <h1>Verified Stays</h1>
+            <p style={{ color: 'var(--text-secondary)' }}>Finding your perfect safe accommodation...</p>
+          </div>
+          <div className="properties-grid">
+            <SkeletonCard variant="property-card" count={6} />
+          </div>
         </div>
       </div>
     );
@@ -526,7 +535,7 @@ const PropertiesPage = () => {
           <div className="properties-main">
             <div className="results-header">
               <p className="results-count">
-                {pagination.total > 0 
+                {pagination.total > 0
                   ? `${pagination.total} ${pagination.total === 1 ? 'property' : 'properties'} found`
                   : `${filteredProperties.length} ${filteredProperties.length === 1 ? 'property' : 'properties'} found`
                 }
@@ -542,695 +551,146 @@ const PropertiesPage = () => {
                 <button
                   className={`view-btn ${viewMode === 'map' ? 'active' : ''}`}
                   onClick={() => setViewMode('map')}
-                title="Map View"
-              >
-                <HiOutlineMap size={20} />
-              </button>
+                  title="Map View"
+                >
+                  <HiOutlineMap size={20} />
+                </button>
+              </div>
             </div>
-          </div>
 
-          {error ? (
-            <EmptyState
-              variant="error"
-              title="Failed to load properties"
-              description={error}
-              action={{
-                label: 'Try Again',
-                onClick: fetchProperties,
-              }}
-            />
-          ) : filteredProperties.length === 0 ? (
-            <EmptyState
-              icon={HiOutlineHome}
-              title="No properties found"
-              description="Try adjusting your search or filters to find what you're looking for."
-              action={{
-                label: 'Clear Filters',
-                onClick: clearFilters,
-                icon: <HiOutlineRefresh size={18} />,
-              }}
-            />
-          ) : viewMode === 'map' ? (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="map-view-container"
-            >
-              <MapComponent
-                center={mapCenter}
-                zoom={mapZoom}
-                markers={[
-                  ...mapMarkers,
-                  // Add selected location marker if exists
-                  ...(selectedLocationCoords ? [{
-                    id: 'selected-location',
-                    lat: selectedLocationCoords.lat,
-                    lng: selectedLocationCoords.lng,
-                    title: filters.location,
-                    description: 'Searched Location',
-                    isSearchMarker: true,
-                  }] : [])
-                ]}
-                height="600px"
-                interactive={true}
-                showUserLocation={true}
-                onLocationSelect={(marker) => {
-                  if (marker?.id && marker.id !== 'selected-location') {
-                    navigate(`/properties/${marker.id}`);
-                  }
+            {error ? (
+              <EmptyState
+                variant="error"
+                title="Failed to load properties"
+                description={error}
+                action={{
+                  label: 'Try Again',
+                  onClick: fetchProperties,
                 }}
               />
-              
-              {/* Property List Below Map */}
-              <div className="map-property-list">
-                <h3 className="map-list-title">
-                  {filteredProperties.length} {filteredProperties.length === 1 ? 'Property' : 'Properties'} 
-                  {filters.location && ` near "${filters.location}"`}
-                </h3>
-                {filteredProperties.length === 0 ? (
-                  <div className="no-properties-message">
-                    <p>No properties found in this area. Try a different location.</p>
-                  </div>
-                ) : (
-                  filteredProperties.map((property) => (
-                    <div
-                      key={property._id}
-                      className="map-property-item"
-                      onClick={() => navigate(`/properties/${property._id}`)}
-                    >
-                      <div className="map-property-image">
-                        {property.images?.[0] ? (
-                          <img src={`http://localhost:4000${property.images[0]}`} alt={property.title} />
-                        ) : (
-                          <HiOutlineHome size={24} />
-                        )}
-                      </div>
-                      <div className="map-property-info">
-                        <h4>{property.title}</h4>
-                        <p className="map-property-location">
-                          <HiOutlineLocationMarker size={14} />
-                          {property.location || 'Location not specified'}
-                        </p>
-                        <span className="map-property-price">₹{property.rent?.toLocaleString()}/month</span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </motion.div>
-          ) : (
-            <div className="properties-grid">
-              {filteredProperties.map((property, index) => (
-                <motion.div
-                  key={property._id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                >
-                  <PropertyCard property={property} />
-                </motion.div>
-              ))}
-            </div>
-          )}
+            ) : filteredProperties.length === 0 ? (
+              <EmptyState
+                icon={HiOutlineHome}
+                title="No properties found"
+                description="Try adjusting your search or filters to find what you're looking for."
+                action={{
+                  label: 'Clear Filters',
+                  onClick: clearFilters,
+                  icon: <HiOutlineRefresh size={18} />,
+                }}
+              />
+            ) : viewMode === 'map' ? (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="map-view-container"
+              >
+                <MapComponent
+                  center={mapCenter}
+                  zoom={mapZoom}
+                  markers={[
+                    ...mapMarkers,
+                    // Add selected location marker if exists
+                    ...(selectedLocationCoords ? [{
+                      id: 'selected-location',
+                      lat: selectedLocationCoords.lat,
+                      lng: selectedLocationCoords.lng,
+                      title: filters.location,
+                      description: 'Searched Location',
+                      isSearchMarker: true,
+                    }] : [])
+                  ]}
+                  height="600px"
+                  interactive={true}
+                  showUserLocation={true}
+                  onLocationSelect={(marker) => {
+                    if (marker?.id && marker.id !== 'selected-location') {
+                      navigate(`/properties/${marker.id}`);
+                    }
+                  }}
+                />
 
-          {/* Pagination */}
-          {pagination.pages > 1 && (
-            <div className="pagination">
-              <button 
-                className="pagination-btn"
-                disabled={pagination.page <= 1}
-                onClick={() => handlePageChange(pagination.page - 1)}
-              >
-                <HiOutlineChevronLeft size={18} />
-                Previous
-              </button>
-              <div className="pagination-info">
-                Page {pagination.page} of {pagination.pages}
+                {/* Property List Below Map */}
+                <div className="map-property-list">
+                  <h3 className="map-list-title">
+                    {filteredProperties.length} {filteredProperties.length === 1 ? 'Property' : 'Properties'}
+                    {filters.location && ` near "${filters.location}"`}
+                  </h3>
+                  {filteredProperties.length === 0 ? (
+                    <div className="no-properties-message">
+                      <p>No properties found in this area. Try a different location.</p>
+                    </div>
+                  ) : (
+                    filteredProperties.map((property) => (
+                      <div
+                        key={property._id}
+                        className="map-property-item"
+                        onClick={() => navigate(`/properties/${property._id}`)}
+                      >
+                        <div className="map-property-image">
+                          {property.images?.[0] ? (
+                            <img src={`http://localhost:4000${property.images[0]}`} alt={property.title} />
+                          ) : (
+                            <HiOutlineHome size={24} />
+                          )}
+                        </div>
+                        <div className="map-property-info">
+                          <h4>{property.title}</h4>
+                          <p className="map-property-location">
+                            <HiOutlineLocationMarker size={14} />
+                            {property.location || 'Location not specified'}
+                          </p>
+                          <span className="map-property-price">₹{property.rent?.toLocaleString()}/month</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </motion.div>
+            ) : (
+              <div className="properties-grid">
+                {filteredProperties.map((property, index) => (
+                  <motion.div
+                    key={property._id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    <PropertyCard property={property} />
+                  </motion.div>
+                ))}
               </div>
-              <button 
-                className="pagination-btn"
-                disabled={pagination.page >= pagination.pages}
-                onClick={() => handlePageChange(pagination.page + 1)}
-              >
-                Next
-                <HiOutlineChevronRight size={18} />
-              </button>
-            </div>
-          )}
+            )}
+
+            {/* Pagination */}
+            {pagination.pages > 1 && (
+              <div className="pagination">
+                <button
+                  className="pagination-btn"
+                  disabled={pagination.page <= 1}
+                  onClick={() => handlePageChange(pagination.page - 1)}
+                >
+                  <HiOutlineChevronLeft size={18} />
+                  Previous
+                </button>
+                <div className="pagination-info">
+                  Page {pagination.page} of {pagination.pages}
+                </div>
+                <button
+                  className="pagination-btn"
+                  disabled={pagination.page >= pagination.pages}
+                  onClick={() => handlePageChange(pagination.page + 1)}
+                >
+                  Next
+                  <HiOutlineChevronRight size={18} />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      <style>{`
-        .properties-page {
-          min-height: calc(100vh - 80px);
-          padding: 2rem 0 4rem;
-          background: var(--bg-secondary);
-        }
-
-        .properties-layout {
-          display: grid;
-          gap: 2rem;
-          grid-template-columns: 1fr;
-        }
-
-        .properties-layout.filters-visible {
-          grid-template-columns: 280px 1fr;
-        }
-
-        @media (max-width: 1024px) {
-          .properties-layout,
-          .properties-layout.filters-visible {
-            grid-template-columns: 1fr;
-          }
-        }
-
-        .properties-main {
-          min-width: 0;
-        }
-
-        .page-header {
-          text-align: center;
-          margin-bottom: 2rem;
-        }
-
-        .header-content h1 {
-          margin-bottom: 0.5rem;
-        }
-
-        .header-content p {
-          color: var(--text-secondary);
-          font-size: 1.125rem;
-        }
-
-        .search-section {
-          margin-bottom: 2rem;
-        }
-
-        .search-form {
-          display: flex;
-          gap: 0.75rem;
-          flex-wrap: wrap;
-        }
-
-        .search-input-wrapper {
-          flex: 1;
-          min-width: 280px;
-          position: relative;
-          display: flex;
-          align-items: center;
-        }
-
-        .search-icon {
-          position: absolute;
-          left: 1rem;
-          color: var(--text-tertiary);
-        }
-
-        .search-input {
-          width: 100%;
-          padding: 0.875rem 1rem 0.875rem 2.75rem;
-          background: var(--bg-card);
-          border: 1px solid var(--border-light);
-          border-radius: var(--radius-md);
-          font-size: 1rem;
-          color: var(--text-primary);
-          transition: all var(--transition-fast);
-        }
-
-        .search-input:focus {
-          outline: none;
-          border-color: var(--accent-primary);
-          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-        }
-
-        .search-input::placeholder {
-          color: var(--text-tertiary);
-        }
-
-        .clear-search {
-          position: absolute;
-          right: 0.75rem;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 28px;
-          height: 28px;
-          color: var(--text-tertiary);
-          border-radius: var(--radius-full);
-          transition: all var(--transition-fast);
-        }
-
-        .clear-search:hover {
-          background: var(--bg-tertiary);
-          color: var(--text-primary);
-        }
-
-        .find-near-me-btn {
-          white-space: nowrap;
-        }
-
-        .find-near-me-btn .spin,
-        .use-my-location-btn .spin {
-          animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-
-        .filter-count {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          min-width: 20px;
-          height: 20px;
-          padding: 0 6px;
-          background: var(--accent-secondary);
-          color: white;
-          border-radius: var(--radius-full);
-          font-size: 0.75rem;
-          font-weight: 600;
-          margin-left: 0.5rem;
-        }
-
-        .filter-panel {
-          margin-top: 1rem;
-          padding: 1.5rem;
-          background: var(--bg-card);
-          border: 1px solid var(--border-light);
-          border-radius: var(--radius-lg);
-        }
-
-        .filter-grid {
-          display: grid;
-          gap: 1rem;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        }
-
-        .filter-group label {
-          display: block;
-          font-size: 0.875rem;
-          font-weight: 500;
-          color: var(--text-primary);
-          margin-bottom: 0.5rem;
-        }
-
-        /* Location Autocomplete Styles */
-        .location-autocomplete {
-          position: relative;
-        }
-
-        .location-input-wrapper {
-          display: flex;
-          align-items: center;
-          background: var(--bg-secondary);
-          border: 1px solid var(--border-light);
-          border-radius: var(--radius-md);
-          padding: 0 1rem;
-          transition: all var(--transition-fast);
-        }
-
-        .location-input-wrapper:focus-within {
-          border-color: var(--accent-primary);
-          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-        }
-
-        .location-icon {
-          color: var(--text-tertiary);
-          flex-shrink: 0;
-        }
-
-        .location-search-input {
-          flex: 1;
-          padding: 0.75rem 0.75rem;
-          border: none;
-          background: transparent;
-          font-size: 0.9375rem;
-          color: var(--text-primary);
-          outline: none;
-        }
-
-        .location-search-input::placeholder {
-          color: var(--text-tertiary);
-        }
-
-        .use-my-location-btn {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 36px;
-          height: 36px;
-          color: var(--accent-primary);
-          background: transparent;
-          border: none;
-          border-radius: var(--radius-full);
-          cursor: pointer;
-          transition: all var(--transition-fast);
-        }
-
-        .use-my-location-btn:hover:not(:disabled) {
-          background: var(--accent-primary);
-          color: white;
-        }
-
-        .use-my-location-btn:disabled {
-          cursor: not-allowed;
-          opacity: 0.7;
-        }
-
-        .use-my-location-btn.detecting {
-          background: var(--accent-primary);
-          color: white;
-        }
-
-        .clear-location {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 24px;
-          height: 24px;
-          color: var(--text-tertiary);
-          border-radius: var(--radius-full);
-          transition: all var(--transition-fast);
-        }
-
-        .clear-location:hover {
-          background: var(--bg-tertiary);
-          color: var(--text-primary);
-        }
-
-        .location-suggestions {
-          position: absolute;
-          top: 100%;
-          left: 0;
-          right: 0;
-          margin-top: 0.5rem;
-          background: var(--bg-card);
-          border: 1px solid var(--border-light);
-          border-radius: var(--radius-lg);
-          box-shadow: var(--shadow-lg);
-          max-height: 250px;
-          overflow-y: auto;
-          z-index: 100;
-        }
-
-        .location-suggestion-item {
-          display: flex;
-          align-items: flex-start;
-          gap: 0.75rem;
-          padding: 0.875rem 1rem;
-          cursor: pointer;
-          transition: background var(--transition-fast);
-        }
-
-        .location-suggestion-item:hover {
-          background: var(--bg-hover, var(--bg-secondary));
-        }
-
-        .location-suggestion-item svg {
-          color: var(--accent-primary);
-          flex-shrink: 0;
-          margin-top: 0.125rem;
-        }
-
-        .location-suggestion-item span {
-          font-size: 0.875rem;
-          color: var(--text-primary);
-          line-height: 1.4;
-        }
-
-        .filter-toggles {
-          display: flex;
-          flex-direction: column;
-          gap: 0.75rem;
-        }
-
-        .toggle-option {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          font-size: 0.9375rem;
-          color: var(--text-secondary);
-          cursor: pointer;
-        }
-
-        .toggle-option input {
-          width: 18px;
-          height: 18px;
-          accent-color: var(--accent-primary);
-        }
-
-        .filter-actions {
-          margin-top: 1rem;
-          padding-top: 1rem;
-          border-top: 1px solid var(--border-light);
-          display: flex;
-          justify-content: flex-end;
-        }
-
-        .results-section {
-          margin-top: 1rem;
-        }
-
-        .results-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 1rem;
-        }
-
-        .results-count {
-          color: var(--text-secondary);
-          font-size: 0.9375rem;
-        }
-
-        .view-toggle {
-          display: flex;
-          gap: 0.25rem;
-          background: var(--bg-card);
-          border: 1px solid var(--border-light);
-          border-radius: var(--radius-md);
-          padding: 0.25rem;
-        }
-
-        .view-btn {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 36px;
-          height: 36px;
-          border-radius: var(--radius-sm);
-          color: var(--text-tertiary);
-          transition: all var(--transition-fast);
-        }
-
-        .view-btn:hover {
-          color: var(--text-primary);
-          background: var(--bg-secondary);
-        }
-
-        .view-btn.active {
-          background: var(--accent-primary);
-          color: white;
-        }
-
-        /* Map View Styles */
-        .map-view-container {
-          display: flex;
-          flex-direction: column;
-          gap: 1.5rem;
-        }
-
-        .no-map-data {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          min-height: 400px;
-          background: var(--bg-card);
-          border: 1px solid var(--border-light);
-          border-radius: var(--radius-lg);
-          color: var(--text-tertiary);
-          text-align: center;
-          padding: 2rem;
-        }
-
-        .no-map-data svg {
-          margin-bottom: 1rem;
-        }
-
-        .no-map-data p {
-          margin: 0.25rem 0;
-        }
-
-        .no-map-data .text-muted {
-          font-size: 0.875rem;
-        }
-
-        .map-property-list {
-          display: grid;
-          gap: 1rem;
-          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-        }
-
-        .map-list-title {
-          font-size: 1rem;
-          font-weight: 600;
-          color: var(--text-primary);
-          margin-bottom: 1rem;
-          padding-bottom: 0.75rem;
-          border-bottom: 1px solid var(--border-light);
-        }
-
-        .no-properties-message {
-          padding: 2rem;
-          text-align: center;
-          color: var(--text-secondary);
-          background: var(--bg-card);
-          border: 1px solid var(--border-light);
-          border-radius: var(--radius-lg);
-        }
-
-        .map-property-item {
-          display: flex;
-          gap: 1rem;
-          padding: 1rem;
-          background: var(--bg-card);
-          border: 1px solid var(--border-light);
-          border-radius: var(--radius-lg);
-          cursor: pointer;
-          transition: all var(--transition-fast);
-        }
-
-        .map-property-item:hover {
-          border-color: var(--accent-primary);
-          box-shadow: var(--shadow-md);
-        }
-
-        .map-property-image {
-          width: 80px;
-          height: 80px;
-          border-radius: var(--radius-md);
-          overflow: hidden;
-          flex-shrink: 0;
-          background: var(--bg-secondary);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: var(--text-tertiary);
-        }
-
-        .map-property-image img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-
-        .map-property-info {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .map-property-info h4 {
-          font-size: 0.9375rem;
-          font-weight: 600;
-          margin-bottom: 0.25rem;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .map-property-location {
-          display: flex;
-          align-items: center;
-          gap: 0.25rem;
-          font-size: 0.8125rem;
-          color: var(--text-secondary);
-          margin-bottom: 0.5rem;
-        }
-
-        .map-property-price {
-          font-size: 0.9375rem;
-          font-weight: 700;
-          color: var(--accent-primary);
-        }
-
-        .properties-grid {
-          display: grid;
-          gap: 1.5rem;
-        }
-
-        @media (min-width: 640px) {
-          .properties-grid {
-            grid-template-columns: repeat(2, 1fr);
-          }
-        }
-
-        @media (min-width: 1024px) {
-          .properties-grid {
-            grid-template-columns: repeat(2, 1fr);
-          }
-        }
-
-        /* Pagination */
-        .pagination {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          gap: 1rem;
-          margin-top: 2rem;
-          padding-top: 2rem;
-          border-top: 1px solid var(--border-color);
-        }
-
-        .pagination-btn {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.625rem 1rem;
-          background: var(--bg-primary);
-          border: 1px solid var(--border-color);
-          border-radius: var(--radius-md);
-          font-size: 0.875rem;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .pagination-btn:hover:not(:disabled) {
-          border-color: var(--primary);
-          color: var(--primary);
-        }
-
-        .pagination-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .pagination-info {
-          font-size: 0.875rem;
-          color: var(--text-secondary);
-        }
-
-        /* When filters hidden, show 3 columns on large screens */
-        .properties-layout:not(.filters-visible) .properties-grid {
-          grid-template-columns: repeat(3, 1fr);
-        }
-
-        @media (max-width: 1024px) {
-          .properties-layout:not(.filters-visible) .properties-grid {
-            grid-template-columns: repeat(2, 1fr);
-          }
-        }
-
-        @media (max-width: 640px) {
-          .properties-layout:not(.filters-visible) .properties-grid {
-            grid-template-columns: 1fr;
-          }
-        }
-      `}</style>
+      
     </div>
   );
 };

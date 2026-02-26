@@ -1,3 +1,4 @@
+import '../styles/LoginPage.css';
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -5,8 +6,10 @@ import { useAuth } from '../../context/AuthContext';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 import { HiOutlineMail, HiOutlineLockClosed, HiOutlineShieldCheck } from 'react-icons/hi';
+import useDocumentTitle from '../../hooks/useDocumentTitle';
 
 const LoginPage = () => {
+  useDocumentTitle('Login');
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
@@ -41,7 +44,6 @@ const LoginPage = () => {
     setIsLoading(false);
 
     if (result.success) {
-      // Navigate based on role
       const dashboardPaths = {
         student: '/dashboard',
         owner: '/owner/dashboard',
@@ -75,7 +77,7 @@ const LoginPage = () => {
             </div>
             <h1>Welcome Back!</h1>
             <p>
-              Log in to access your safe stays, manage bookings, 
+              Log in to access your safe stays, manage bookings,
               and connect with your community.
             </p>
             <div className="trust-metrics">
@@ -150,16 +152,25 @@ const LoginPage = () => {
                 Sign In
               </Button>
 
-            <div style={{ marginTop: '0.75rem' }}>
-              <Button
-                variant="outline"
-                size="lg"
-                fullWidth
-                onClick={() => { window.location.href = '/api/auth/google'; }}
-              >
-                Sign in with Google
-              </Button>
-            </div>
+              <div style={{ marginTop: '0.75rem', position: 'relative' }}>
+                <div className="divider" style={{
+                  display: 'flex', alignItems: 'center', textAlign: 'center', color: '#9ca3af', margin: '15px 0'
+                }}>
+                  <div style={{ flex: 1, borderBottom: '1px solid #e5e7eb' }}></div>
+                  <span style={{ padding: '0 10px', fontSize: '0.875rem' }}>or</span>
+                  <div style={{ flex: 1, borderBottom: '1px solid #e5e7eb' }}></div>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  fullWidth
+                  onClick={() => { window.location.href = '/api/auth/google'; }}
+                >
+                  Sign in with Google
+                </Button>
+              </div>
             </form>
 
             <div className="auth-footer">
@@ -173,178 +184,6 @@ const LoginPage = () => {
           </div>
         </div>
       </motion.div>
-
-      <style>{`
-        .auth-page {
-          min-height: calc(100vh - 80px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 2rem 1rem;
-          background: var(--bg-secondary);
-        }
-
-        .auth-container {
-          display: grid;
-          width: 100%;
-          max-width: 1000px;
-          background: var(--bg-card);
-          border-radius: var(--radius-xl);
-          overflow: hidden;
-          box-shadow: var(--shadow-xl);
-        }
-
-        @media (min-width: 768px) {
-          .auth-container {
-            grid-template-columns: 1fr 1fr;
-          }
-        }
-
-        .auth-branding {
-          background: var(--accent-gradient);
-          padding: 3rem;
-          display: none;
-        }
-
-        @media (min-width: 768px) {
-          .auth-branding {
-            display: flex;
-            align-items: center;
-          }
-        }
-
-        .branding-content {
-          color: white;
-        }
-
-        .brand-logo {
-          width: 80px;
-          height: 80px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: rgba(255, 255, 255, 0.2);
-          border-radius: var(--radius-lg);
-          margin-bottom: 2rem;
-        }
-
-        .branding-content h1 {
-          font-size: 2rem;
-          color: white;
-          margin-bottom: 1rem;
-        }
-
-        .branding-content p {
-          color: rgba(255, 255, 255, 0.9);
-          line-height: 1.7;
-          margin-bottom: 2.5rem;
-        }
-
-        .trust-metrics {
-          display: flex;
-          gap: 1.5rem;
-        }
-
-        .metric {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .metric-value {
-          font-size: 1.5rem;
-          font-weight: 700;
-        }
-
-        .metric-label {
-          font-size: 0.75rem;
-          opacity: 0.8;
-        }
-
-        .auth-form-container {
-          padding: 3rem 2rem;
-        }
-
-        @media (min-width: 768px) {
-          .auth-form-container {
-            padding: 3rem;
-          }
-        }
-
-        .auth-form-wrapper {
-          max-width: 360px;
-          margin: 0 auto;
-        }
-
-        .form-header {
-          text-align: center;
-          margin-bottom: 2rem;
-        }
-
-        .form-header h2 {
-          font-size: 1.75rem;
-          margin-bottom: 0.5rem;
-        }
-
-        .form-header p {
-          color: var(--text-secondary);
-        }
-
-        .auth-form {
-          display: flex;
-          flex-direction: column;
-          gap: 0.5rem;
-        }
-
-        .form-options {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin: 0.5rem 0 1.5rem;
-        }
-
-        .remember-me {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          font-size: 0.875rem;
-          color: var(--text-secondary);
-          cursor: pointer;
-        }
-
-        .remember-me input {
-          width: 16px;
-          height: 16px;
-          accent-color: var(--accent-primary);
-        }
-
-        .forgot-link {
-          font-size: 0.875rem;
-          color: var(--accent-primary);
-          font-weight: 500;
-        }
-
-        .forgot-link:hover {
-          text-decoration: underline;
-        }
-
-        .auth-footer {
-          margin-top: 2rem;
-          text-align: center;
-        }
-
-        .auth-footer p {
-          color: var(--text-secondary);
-        }
-
-        .auth-link {
-          color: var(--accent-primary);
-          font-weight: 600;
-        }
-
-        .auth-link:hover {
-          text-decoration: underline;
-        }
-      `}</style>
     </div>
   );
 };

@@ -14,11 +14,14 @@ import {
 } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import messService from '../../services/messService';
+import ConfirmModal from '../../components/ui/ConfirmModal';
+import Loading from '../../components/ui/Loading';
 
 const StudentMessSubscriptionsPage = () => {
     const [subscriptions, setSubscriptions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('all');
+    const [confirmCancelId, setConfirmCancelId] = useState(null);
 
     const fetchSubscriptions = useCallback(async () => {
         try {
@@ -39,14 +42,19 @@ const StudentMessSubscriptionsPage = () => {
     }, [fetchSubscriptions]);
 
     const handleCancelSubscription = async (subscriptionId) => {
-        if (!window.confirm('Are you sure you want to cancel this subscription?')) return;
+        setConfirmCancelId(subscriptionId);
+    };
 
+    const confirmCancelAction = async () => {
+        if (!confirmCancelId) return;
         try {
-            await messService.cancelSubscription(subscriptionId);
+            await messService.cancelSubscription(confirmCancelId);
             toast.success('Subscription cancelled successfully');
             fetchSubscriptions();
         } catch (error) {
             toast.error('Failed to cancel subscription');
+        } finally {
+            setConfirmCancelId(null);
         }
     };
 
@@ -93,196 +101,208 @@ const StudentMessSubscriptionsPage = () => {
     if (loading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+                <Loading size="lg" text="Loading subscriptions..." />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4">
-            <div className="max-w-6xl mx-auto">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-8">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-900">My Mess Subscriptions</h1>
-                        <p className="text-gray-600 mt-1">Manage your mess service subscriptions</p>
-                    </div>
-                    <div className="flex gap-3">
-                        <button
-                            onClick={fetchSubscriptions}
-                            className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow hover:shadow-md transition-all"
-                        >
-                            <HiOutlineRefresh className="w-5 h-5" />
-                            Refresh
-                        </button>
-                        <Link
-                            to="/mess"
-                            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 transition-all"
-                        >
-                            Browse Mess Services
-                            <HiOutlineChevronRight className="w-5 h-5" />
-                        </Link>
-                    </div>
-                </div>
-
-                {/* Tabs */}
-                <div className="flex gap-2 mb-6 bg-white p-2 rounded-xl shadow-sm">
-                    {tabs.map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === tab.id
-                                ? 'bg-indigo-600 text-white'
-                                : 'text-gray-600 hover:bg-gray-100'
-                                }`}
-                        >
-                            {tab.label}
-                            <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${activeTab === tab.id ? 'bg-indigo-500' : 'bg-gray-200'
-                                }`}>
-                                {tab.count}
-                            </span>
-                        </button>
-                    ))}
-                </div>
-
-                {/* Subscriptions Grid */}
-                {filteredSubscriptions.length === 0 ? (
-                    <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
-                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <HiOutlineCalendar className="w-8 h-8 text-gray-400" />
+        <>
+            <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4">
+                <div className="max-w-6xl mx-auto">
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-8">
+                        <div>
+                            <h1 className="text-3xl font-bold text-gray-900">My Mess Subscriptions</h1>
+                            <p className="text-gray-600 mt-1">Manage your mess service subscriptions</p>
                         </div>
-                        <h3 className="text-xl font-semibold text-gray-900 mb-2">No subscriptions found</h3>
-                        <p className="text-gray-600 mb-6">
-                            {activeTab === 'all'
-                                ? "You haven't subscribed to any mess services yet."
-                                : `No ${activeTab} subscriptions found.`}
-                        </p>
-                        <Link
-                            to="/mess"
-                            className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all"
-                        >
-                            Browse Mess Services
-                        </Link>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={fetchSubscriptions}
+                                className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow hover:shadow-md transition-all"
+                            >
+                                <HiOutlineRefresh className="w-5 h-5" />
+                                Refresh
+                            </button>
+                            <Link
+                                to="/mess"
+                                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 transition-all"
+                            >
+                                Browse Mess Services
+                                <HiOutlineChevronRight className="w-5 h-5" />
+                            </Link>
+                        </div>
                     </div>
-                ) : (
-                    <div className="grid gap-6">
-                        <AnimatePresence>
-                            {filteredSubscriptions.map((subscription, index) => (
-                                <motion.div
-                                    key={subscription._id}
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -20 }}
-                                    transition={{ delay: index * 0.1 }}
-                                    className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-all overflow-hidden"
-                                >
-                                    <div className="p-6">
-                                        <div className="flex items-start justify-between">
-                                            <div className="flex gap-4">
-                                                {/* Mess Image */}
-                                                <div className="w-24 h-24 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
-                                                    {subscription.mess?.images?.[0] ? (
-                                                        <img
-                                                            src={`http://localhost:4000${subscription.mess.images[0]}`}
-                                                            alt={subscription.mess.name}
-                                                            className="w-full h-full object-cover"
-                                                        />
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                                            <HiOutlineLocationMarker className="w-8 h-8" />
+
+                    {/* Tabs */}
+                    <div className="flex gap-2 mb-6 bg-white p-2 rounded-xl shadow-sm">
+                        {tabs.map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === tab.id
+                                    ? 'bg-indigo-600 text-white'
+                                    : 'text-gray-600 hover:bg-gray-100'
+                                    }`}
+                            >
+                                {tab.label}
+                                <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${activeTab === tab.id ? 'bg-indigo-500' : 'bg-gray-200'
+                                    }`}>
+                                    {tab.count}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Subscriptions Grid */}
+                    {filteredSubscriptions.length === 0 ? (
+                        <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
+                            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <HiOutlineCalendar className="w-8 h-8 text-gray-400" />
+                            </div>
+                            <h3 className="text-xl font-semibold text-gray-900 mb-2">No subscriptions found</h3>
+                            <p className="text-gray-600 mb-6">
+                                {activeTab === 'all'
+                                    ? "You haven't subscribed to any mess services yet."
+                                    : `No ${activeTab} subscriptions found.`}
+                            </p>
+                            <Link
+                                to="/mess"
+                                className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all"
+                            >
+                                Browse Mess Services
+                            </Link>
+                        </div>
+                    ) : (
+                        <div className="grid gap-6">
+                            <AnimatePresence>
+                                {filteredSubscriptions.map((subscription, index) => (
+                                    <motion.div
+                                        key={subscription._id}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -20 }}
+                                        transition={{ delay: index * 0.1 }}
+                                        className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-all overflow-hidden"
+                                    >
+                                        <div className="p-6">
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex gap-4">
+                                                    {/* Mess Image */}
+                                                    <div className="w-24 h-24 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
+                                                        {subscription.mess?.images?.[0] ? (
+                                                            <img
+                                                                src={`http://localhost:4000${subscription.mess.images[0]}`}
+                                                                alt={subscription.mess.name}
+                                                                className="w-full h-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                                                <HiOutlineLocationMarker className="w-8 h-8" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Mess Info */}
+                                                    <div>
+                                                        <div className="flex items-center gap-3 mb-2">
+                                                            <Link
+                                                                to={`/mess/${subscription.mess?._id}`}
+                                                                className="text-xl font-bold text-gray-900 hover:text-indigo-600"
+                                                            >
+                                                                {subscription.mess?.name || 'Unknown Mess'}
+                                                            </Link>
+                                                            {getStatusBadge(subscription.status)}
                                                         </div>
-                                                    )}
-                                                </div>
 
-                                                {/* Mess Info */}
-                                                <div>
-                                                    <div className="flex items-center gap-3 mb-2">
-                                                        <Link
-                                                            to={`/mess/${subscription.mess?._id}`}
-                                                            className="text-xl font-bold text-gray-900 hover:text-indigo-600"
-                                                        >
-                                                            {subscription.mess?.name || 'Unknown Mess'}
-                                                        </Link>
-                                                        {getStatusBadge(subscription.status)}
-                                                    </div>
-
-                                                    <div className="flex items-center gap-4 text-gray-600 mb-3">
-                                                        <span className="flex items-center gap-1">
-                                                            <HiOutlineLocationMarker className="w-4 h-4" />
-                                                            {subscription.mess?.location || 'Unknown location'}
-                                                        </span>
-                                                        <span className="flex items-center gap-1">
-                                                            <HiOutlineCurrencyRupee className="w-4 h-4" />
-                                                            ₹{subscription.amount}/month
-                                                        </span>
-                                                    </div>
-
-                                                    <div className="flex flex-wrap gap-2 mb-3">
-                                                        <span className="px-2 py-1 bg-gray-100 rounded text-sm text-gray-700">
-                                                            {subscription.plan?.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                                                        </span>
-                                                        {subscription.selectedMeals?.map(meal => (
-                                                            <span key={meal} className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-sm">
-                                                                {meal}
+                                                        <div className="flex items-center gap-4 text-gray-600 mb-3">
+                                                            <span className="flex items-center gap-1">
+                                                                <HiOutlineLocationMarker className="w-4 h-4" />
+                                                                {subscription.mess?.location || 'Unknown location'}
                                                             </span>
-                                                        ))}
-                                                    </div>
-
-                                                    <div className="flex items-center gap-4 text-sm text-gray-500">
-                                                        <span className="flex items-center gap-1">
-                                                            <HiOutlineCalendar className="w-4 h-4" />
-                                                            {new Date(subscription.startDate).toLocaleDateString()} - {new Date(subscription.endDate).toLocaleDateString()}
-                                                        </span>
-                                                    </div>
-
-                                                    {subscription.status === 'Rejected' && subscription.rejectionReason && (
-                                                        <div className="mt-3 p-3 bg-red-50 rounded-lg text-red-700 text-sm">
-                                                            <strong>Reason:</strong> {subscription.rejectionReason}
+                                                            <span className="flex items-center gap-1">
+                                                                <HiOutlineCurrencyRupee className="w-4 h-4" />
+                                                                ₹{subscription.amount}/month
+                                                            </span>
                                                         </div>
-                                                    )}
-                                                </div>
-                                            </div>
 
-                                            {/* Actions */}
-                                            <div className="flex flex-col gap-2">
-                                                {subscription.status === 'Active' && (
-                                                    <>
-                                                        <Link
-                                                            to={`/dashboard`}
-                                                            state={{ openChat: true, messId: subscription.mess?._id, messOwnerId: subscription.mess?.owner }}
-                                                            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all"
-                                                        >
-                                                            <HiOutlineChatAlt2 className="w-5 h-5" />
-                                                            Chat with Owner
-                                                        </Link>
+                                                        <div className="flex flex-wrap gap-2 mb-3">
+                                                            <span className="px-2 py-1 bg-gray-100 rounded text-sm text-gray-700">
+                                                                {subscription.plan?.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                                                            </span>
+                                                            {subscription.selectedMeals?.map(meal => (
+                                                                <span key={meal} className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-sm">
+                                                                    {meal}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+
+                                                        <div className="flex items-center gap-4 text-sm text-gray-500">
+                                                            <span className="flex items-center gap-1">
+                                                                <HiOutlineCalendar className="w-4 h-4" />
+                                                                {new Date(subscription.startDate).toLocaleDateString()} - {new Date(subscription.endDate).toLocaleDateString()}
+                                                            </span>
+                                                        </div>
+
+                                                        {subscription.status === 'Rejected' && subscription.rejectionReason && (
+                                                            <div className="mt-3 p-3 bg-red-50 rounded-lg text-red-700 text-sm">
+                                                                <strong>Reason:</strong> {subscription.rejectionReason}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Actions */}
+                                                <div className="flex flex-col gap-2">
+                                                    {subscription.status === 'Active' && (
+                                                        <>
+                                                            <Link
+                                                                to={`/dashboard`}
+                                                                state={{ openChat: true, messId: subscription.mess?._id, messOwnerId: subscription.mess?.owner }}
+                                                                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all"
+                                                            >
+                                                                <HiOutlineChatAlt2 className="w-5 h-5" />
+                                                                Chat with Owner
+                                                            </Link>
+                                                            <button
+                                                                onClick={() => handleCancelSubscription(subscription._id)}
+                                                                className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-all"
+                                                            >
+                                                                <HiOutlineXCircle className="w-5 h-5" />
+                                                                Cancel
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                    {subscription.status === 'Pending' && (
                                                         <button
                                                             onClick={() => handleCancelSubscription(subscription._id)}
-                                                            className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-all"
+                                                            className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-all"
                                                         >
                                                             <HiOutlineXCircle className="w-5 h-5" />
-                                                            Cancel
+                                                            Cancel Request
                                                         </button>
-                                                    </>
-                                                )}
-                                                {subscription.status === 'Pending' && (
-                                                    <button
-                                                        onClick={() => handleCancelSubscription(subscription._id)}
-                                                        className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-all"
-                                                    >
-                                                        <HiOutlineXCircle className="w-5 h-5" />
-                                                        Cancel Request
-                                                    </button>
-                                                )}
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                </motion.div>
-                            ))}
-                        </AnimatePresence>
-                    </div>
-                )}
+                                    </motion.div>
+                                ))}
+                            </AnimatePresence>
+                        </div>
+                    )}
+                </div>
             </div>
-        </div>
+
+            <ConfirmModal
+                isOpen={!!confirmCancelId}
+                onClose={() => setConfirmCancelId(null)}
+                onConfirm={confirmCancelAction}
+                title="Cancel Subscription?"
+                message="Are you sure you want to cancel this mess subscription? This action cannot be undone."
+                confirmText="Cancel Subscription"
+                variant="warning"
+            />
+        </>
     );
 };
 

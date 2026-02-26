@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { messService } from '../../services/messService';
 import { MessCard } from '../../components/mess';
-import Loading from '../../components/ui/Loading';
+import SkeletonCard from '../../components/ui/SkeletonCard';
 import EmptyState from '../../components/ui/EmptyState';
 import Button from '../../components/ui/Button';
 import {
@@ -10,13 +10,15 @@ import {
   HiOutlineFilter,
   HiOutlineLocationMarker
 } from 'react-icons/hi';
+import useDocumentTitle from '../../hooks/useDocumentTitle';
 
 const MessServicesPage = () => {
+  useDocumentTitle('Mess Services');
   const [messServices, setMessServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
-  
+
   // Filter states
   const [filters, setFilters] = useState({
     search: '',
@@ -31,7 +33,7 @@ const MessServicesPage = () => {
   });
 
   const cuisineOptions = [
-    'Vegetarian', 'Non-Vegetarian', 'Vegan', 'Jain', 
+    'Vegetarian', 'Non-Vegetarian', 'Vegan', 'Jain',
     'North Indian', 'South Indian', 'Chinese', 'Multi-Cuisine'
   ];
 
@@ -108,13 +110,13 @@ const MessServicesPage = () => {
   };
 
   const hasActiveFilters = () => {
-    return filters.location || 
-           filters.cuisineType.length > 0 || 
-           filters.mealType.length > 0 ||
-           filters.features.length > 0 ||
-           filters.minPrice || 
-           filters.maxPrice ||
-           filters.minRating;
+    return filters.location ||
+      filters.cuisineType.length > 0 ||
+      filters.mealType.length > 0 ||
+      filters.features.length > 0 ||
+      filters.minPrice ||
+      filters.maxPrice ||
+      filters.minRating;
   };
 
   return (
@@ -157,15 +159,15 @@ const MessServicesPage = () => {
           </form>
 
           <div className="filter-actions">
-            <button 
+            <button
               className={`filter-toggle-btn ${hasActiveFilters() ? 'has-filters' : ''}`}
               onClick={() => setShowFilters(!showFilters)}
             >
               <HiOutlineFilter />
               Filters
               {hasActiveFilters() && <span className="filter-count">{
-                (filters.cuisineType.length || 0) + 
-                (filters.mealType.length || 0) + 
+                (filters.cuisineType.length || 0) +
+                (filters.mealType.length || 0) +
                 (filters.features.length || 0) +
                 (filters.minPrice ? 1 : 0) +
                 (filters.maxPrice ? 1 : 0) +
@@ -262,7 +264,7 @@ const MessServicesPage = () => {
                       <button
                         key={rating}
                         className={`rating-chip ${filters.minRating === String(rating) ? 'active' : ''}`}
-                        onClick={() => handleFilterChange('minRating', 
+                        onClick={() => handleFilterChange('minRating',
                           filters.minRating === String(rating) ? '' : String(rating)
                         )}
                       >
@@ -304,7 +306,9 @@ const MessServicesPage = () => {
         {/* Results */}
         <div className="results-section">
           {loading ? (
-            <Loading text="Finding mess services..." />
+            <div className="mess-grid">
+              <SkeletonCard variant="property-card" count={6} />
+            </div>
           ) : messServices.length === 0 ? (
             <EmptyState
               icon={<span style={{ fontSize: '4rem' }}>🍽️</span>}

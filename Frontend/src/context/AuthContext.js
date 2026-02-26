@@ -33,7 +33,6 @@ export const AuthProvider = ({ children }) => {
     const loadUser = async () => {
       if (token) {
         try {
-          // Decode token to get user info
           const payload = JSON.parse(atob(token.split('.')[1]));
           setUser({
             id: payload.id,
@@ -55,11 +54,11 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await api.post('/auth/login', { email, password });
       const { token: authToken, user: userData } = response.data;
-      
+
       setToken(authToken);
       setUser(userData);
       toast.success(`Welcome back, ${userData.name}!`);
-      
+
       return { success: true, user: userData };
     } catch (error) {
       const message = error.response?.data?.message || 'Login failed';
@@ -68,21 +67,45 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  // Step 1: register — sends OTP, returns pendingUserId
   const register = useCallback(async (name, email, password, role = 'student') => {
     try {
       const response = await api.post('/auth/register', { name, email, password, role });
-      toast.success(response.data.message || 'Registration successful!');
-      
-      // Auto-login after registration
-      const loginResponse = await api.post('/auth/login', { email, password });
-      const { token: authToken, user: userData } = loginResponse.data;
-      
-      setToken(authToken);
-      setUser(userData);
-      
-      return { success: true, user: userData };
+      toast.success(response.data.message || 'Verification code sent!');
+      return { success: true, pendingUserId: response.data.pendingUserId };
     } catch (error) {
       const message = error.response?.data?.message || 'Registration failed';
+      toast.error(message);
+      return { success: false, error: message };
+    }
+  }, []);
+
+  // Step 2: verify OTP — creates user, returns token
+  const verifyOtp = useCallback(async (pendingUserId, otp) => {
+    try {
+      const response = await api.post('/auth/verify-otp', { pendingUserId, otp });
+      const { token: authToken, user: userData } = response.data;
+
+      setToken(authToken);
+      setUser(userData);
+      toast.success('Email verified! Welcome to StaySafe Hub!');
+
+      return { success: true, user: userData };
+    } catch (error) {
+      const message = error.response?.data?.message || 'Verification failed';
+      toast.error(message);
+      return { success: false, error: message };
+    }
+  }, []);
+
+  // Resend OTP
+  const resendOtp = useCallback(async (pendingUserId) => {
+    try {
+      const response = await api.post('/auth/resend-otp', { pendingUserId });
+      toast.success(response.data.message || 'New code sent!');
+      return { success: true };
+    } catch (error) {
+      const message = error.response?.data?.message || 'Failed to resend code';
       toast.error(message);
       return { success: false, error: message };
     }
@@ -101,6 +124,8 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated: !!user,
     login,
     register,
+    verifyOtp,
+    resendOtp,
     logout,
   };
 

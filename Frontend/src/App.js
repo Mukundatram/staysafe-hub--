@@ -6,6 +6,9 @@ import { Toaster } from 'react-hot-toast';
 import Layout from './components/layout/Layout';
 import { ChatbotWidget } from './components/chatbot';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import ErrorBoundary from './components/ui/ErrorBoundary';
+import ScrollToTop from './components/ui/ScrollToTop';
+import BackToTop from './components/ui/BackToTop';
 
 // Pages
 import LandingPage from './pages/LandingPage';
@@ -33,6 +36,11 @@ import MessDetailsPage from './pages/mess/MessDetailsPage';
 import StudentMessSubscriptionsPage from './pages/mess/StudentMessSubscriptionsPage';
 import OwnerMessSubscriptionsPage from './pages/mess/OwnerMessSubscriptionsPage';
 import AdminMessPage from './pages/admin/AdminMessPage';
+import RoommateMatchesPage from './pages/roommate/RoommateMatchesPage';
+import RoommateRequestsPage from './pages/roommate/RoommateRequestsPage';
+import RoommateProfilePage from './pages/roommate/RoommateProfilePage';
+import RoommateChatPage from './pages/roommate/RoommateChatPage';
+import RoomSharesPage from './pages/roommate/RoomSharesPage';
 
 function App() {
   return (
@@ -49,43 +57,56 @@ function App() {
           },
         }}
       />
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<LandingPage />} />
-          <Route path="login" element={<LoginPage />} />
-          <Route path="auth/google/success" element={<GoogleCallback />} />
-          <Route path="register" element={<RegisterPage />} />
-          <Route path="properties" element={<PropertiesPage />} />
-          <Route path="properties/:id" element={<PropertyDetailsPage />} />
-          <Route path="mess" element={<MessServicesPage />} />
-          <Route path="mess/:id" element={<MessDetailsPage />} />
-          <Route path="community" element={<CommunityPage />} />
-          <Route path="safety" element={<SafetyPage />} />
-          <Route path="contact" element={<ContactPage />} />
+      <ErrorBoundary>
+        <ScrollToTop />
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<LandingPage />} />
+            <Route path="login" element={<LoginPage />} />
+            <Route path="auth/google/success" element={<GoogleCallback />} />
+            <Route path="register" element={<RegisterPage />} />
+            <Route path="properties" element={<PropertiesPage />} />
+            <Route path="properties/:id" element={<PropertyDetailsPage />} />
+            <Route path="mess" element={<MessServicesPage />} />
+            <Route path="mess/:id" element={<MessDetailsPage />} />
+            <Route path="community" element={<CommunityPage />} />
+            <Route path="safety" element={<SafetyPage />} />
+            <Route path="contact" element={<ContactPage />} />
 
-          {/* Protected Routes */}
-          <Route path="dashboard" element={<ProtectedRoute allowedRoles={['student']}><StudentDashboard /></ProtectedRoute>} />
-          <Route path="owner/dashboard" element={<ProtectedRoute allowedRoles={['owner']}><OwnerDashboard /></ProtectedRoute>} />
-          <Route path="admin/dashboard" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
-          <Route path="booking/:propertyId" element={<ProtectedRoute allowedRoles={['student']}><BookingPage /></ProtectedRoute>} />
-          <Route path="notifications" element={<ProtectedRoute allowedRoles={['student', 'owner', 'admin']}><NotificationsPage /></ProtectedRoute>} />
-          <Route path="wishlist" element={<ProtectedRoute allowedRoles={['student', 'owner', 'admin']}><WishlistPage /></ProtectedRoute>} />
-          <Route path="verification" element={<ProtectedRoute allowedRoles={['student', 'owner']}><VerificationPage /></ProtectedRoute>} />
-          <Route path="profile" element={<ProtectedRoute allowedRoles={['student', 'owner', 'admin']}><ProfilePage /></ProtectedRoute>} />
-          <Route path="agreements" element={<ProtectedRoute allowedRoles={['student', 'owner']}><AgreementsListPage /></ProtectedRoute>} />
-          <Route path="agreements/:id" element={<ProtectedRoute allowedRoles={['student', 'owner', 'admin']}><AgreementPage /></ProtectedRoute>} />
+            {/* Protected Routes */}
+            <Route path="dashboard" element={<ProtectedRoute allowedRoles={['student']}><StudentDashboard /></ProtectedRoute>} />
+            <Route path="owner/dashboard" element={<ProtectedRoute allowedRoles={['owner']}><OwnerDashboard /></ProtectedRoute>} />
+            <Route path="admin/dashboard" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
+            <Route path="booking/:propertyId" element={<ProtectedRoute allowedRoles={['student']}><BookingPage /></ProtectedRoute>} />
+            <Route path="notifications" element={<ProtectedRoute allowedRoles={['student', 'owner', 'admin']}><NotificationsPage /></ProtectedRoute>} />
+            <Route path="wishlist" element={<ProtectedRoute allowedRoles={['student', 'owner', 'admin']}><WishlistPage /></ProtectedRoute>} />
+            <Route path="verification" element={<ProtectedRoute allowedRoles={['student', 'owner']}><VerificationPage /></ProtectedRoute>} />
+            <Route path="profile" element={<ProtectedRoute allowedRoles={['student', 'owner', 'admin']}><ProfilePage /></ProtectedRoute>} />
+            <Route path="agreements" element={<ProtectedRoute allowedRoles={['student', 'owner']}><AgreementsListPage /></ProtectedRoute>} />
+            <Route path="agreements/:id" element={<ProtectedRoute allowedRoles={['student', 'owner', 'admin']}><AgreementPage /></ProtectedRoute>} />
 
-          {/* Mess Subscription Routes */}
-          <Route path="mess/subscriptions" element={<ProtectedRoute allowedRoles={['student']}><StudentMessSubscriptionsPage /></ProtectedRoute>} />
-          <Route path="owner/mess/subscriptions" element={<ProtectedRoute allowedRoles={['owner']}><OwnerMessSubscriptionsPage /></ProtectedRoute>} />
-          <Route path="admin/mess" element={<ProtectedRoute allowedRoles={['admin']}><AdminMessPage /></ProtectedRoute>} />
+            {/* Mess Subscription Routes */}
+            <Route path="mess/subscriptions" element={<ProtectedRoute allowedRoles={['student']}><StudentMessSubscriptionsPage /></ProtectedRoute>} />
+            <Route path="owner/mess/subscriptions" element={<ProtectedRoute allowedRoles={['owner']}><OwnerMessSubscriptionsPage /></ProtectedRoute>} />
+            <Route path="admin/mess" element={<ProtectedRoute allowedRoles={['admin']}><AdminMessPage /></ProtectedRoute>} />
 
-          <Route path="*" element={<NotFoundPage />} />
-        </Route>
-      </Routes>
+            {/* Roommate Routes */}
+            <Route path="community/roommate" element={<ProtectedRoute allowedRoles={['student']}><RoommateMatchesPage /></ProtectedRoute>} />
+            <Route path="community/roommate/matches" element={<ProtectedRoute allowedRoles={['student']}><RoommateMatchesPage /></ProtectedRoute>} />
+            <Route path="community/roommate/profile" element={<ProtectedRoute allowedRoles={['student']}><RoommateProfilePage /></ProtectedRoute>} />
+            <Route path="community/roommate/requests" element={<ProtectedRoute allowedRoles={['student']}><RoommateRequestsPage /></ProtectedRoute>} />
+            <Route path="community/roommate/connections" element={<ProtectedRoute allowedRoles={['student']}><RoommateMatchesPage /></ProtectedRoute>} />
+            <Route path="community/roommate/chat/:roommateId" element={<ProtectedRoute allowedRoles={['student']}><RoommateChatPage /></ProtectedRoute>} />
+            <Route path="room-shares" element={<ProtectedRoute allowedRoles={['student']}><RoomSharesPage /></ProtectedRoute>} />
+
+            <Route path="*" element={<NotFoundPage />} />
+          </Route>
+        </Routes>
+      </ErrorBoundary>
 
       {/* AI Chatbot Widget */}
       <ChatbotWidget />
+      <BackToTop />
     </>
   );
 }

@@ -4,6 +4,8 @@ import { useWishlist } from '../context/WishlistContext';
 import PropertyCard from '../components/property/PropertyCard';
 import Loading from '../components/ui/Loading';
 import EmptyState from '../components/ui/EmptyState';
+import ConfirmModal from '../components/ui/ConfirmModal';
+import useDocumentTitle from '../hooks/useDocumentTitle';
 import Button from '../components/ui/Button';
 import {
   HiOutlineHeart,
@@ -15,17 +17,19 @@ import {
 } from 'react-icons/hi';
 
 const WishlistPage = () => {
-  const { 
-    wishlistItems, 
-    loading, 
-    error, 
-    fetchWishlist, 
+  useDocumentTitle('Wishlist');
+  const {
+    wishlistItems,
+    loading,
+    error,
+    fetchWishlist,
     removeFromWishlist,
-    updateNotes 
+    updateNotes
   } = useWishlist();
 
   const [editingNotes, setEditingNotes] = useState(null);
   const [noteText, setNoteText] = useState('');
+  const [confirmRemove, setConfirmRemove] = useState(null);
 
   useEffect(() => {
     fetchWishlist();
@@ -48,8 +52,13 @@ const WishlistPage = () => {
   };
 
   const handleRemove = async (propertyId) => {
-    if (window.confirm('Are you sure you want to remove this property from your wishlist?')) {
-      await removeFromWishlist(propertyId);
+    setConfirmRemove(propertyId);
+  };
+
+  const confirmRemoveAction = async () => {
+    if (confirmRemove) {
+      await removeFromWishlist(confirmRemove);
+      setConfirmRemove(null);
     }
   };
 
@@ -79,7 +88,7 @@ const WishlistPage = () => {
             <div>
               <h1>My Wishlist</h1>
               <p>
-                {wishlistItems.length > 0 
+                {wishlistItems.length > 0
                   ? `You have ${wishlistItems.length} saved ${wishlistItems.length === 1 ? 'property' : 'properties'}`
                   : 'Save properties you love to view them later'
                 }
@@ -129,7 +138,7 @@ const WishlistPage = () => {
                   className="wishlist-item"
                 >
                   <PropertyCard property={item.property} showActions={true} />
-                  
+
                   {/* Notes Section */}
                   <div className="wishlist-notes">
                     {editingNotes === item.property._id ? (
@@ -142,14 +151,14 @@ const WishlistPage = () => {
                           rows={3}
                         />
                         <div className="notes-actions">
-                          <button 
+                          <button
                             className="save-btn"
                             onClick={() => handleSaveNotes(item.property._id)}
                           >
                             <HiOutlineCheck size={16} />
                             Save
                           </button>
-                          <button 
+                          <button
                             className="cancel-btn"
                             onClick={handleCancelEdit}
                           >
@@ -165,7 +174,7 @@ const WishlistPage = () => {
                         ) : (
                           <p className="notes-empty">No notes added</p>
                         )}
-                        <button 
+                        <button
                           className="edit-btn"
                           onClick={() => handleEditNotes(item)}
                         >
@@ -181,7 +190,7 @@ const WishlistPage = () => {
                     <span className="added-date">
                       Added {new Date(item.addedAt).toLocaleDateString()}
                     </span>
-                    <button 
+                    <button
                       className="remove-btn"
                       onClick={() => handleRemove(item.property._id)}
                     >
@@ -420,6 +429,16 @@ const WishlistPage = () => {
           }
         }
       `}</style>
+
+      <ConfirmModal
+        isOpen={!!confirmRemove}
+        onClose={() => setConfirmRemove(null)}
+        onConfirm={confirmRemoveAction}
+        title="Remove from Wishlist?"
+        message="Are you sure you want to remove this property from your wishlist?"
+        confirmText="Remove"
+        variant="danger"
+      />
     </div>
   );
 };

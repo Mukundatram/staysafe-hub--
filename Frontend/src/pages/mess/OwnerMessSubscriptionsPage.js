@@ -14,7 +14,12 @@ import {
 } from 'react-icons/hi';
 import toast from 'react-hot-toast';
 import messService from '../../services/messService';
-
+import Button from '../../components/ui/Button';
+import Card from '../../components/ui/Card';
+import Badge from '../../components/ui/Badge';
+import EmptyState from '../../components/ui/EmptyState';
+import Loading from '../../components/ui/Loading';
+import '../styles/OwnerMessSubscriptionsPage.css';
 
 const OwnerMessSubscriptionsPage = () => {
     const [subscriptions, setSubscriptions] = useState([]);
@@ -43,7 +48,6 @@ const OwnerMessSubscriptionsPage = () => {
 
     useEffect(() => {
         fetchSubscriptions();
-        // Socket listeners would go here if needed, but for now relying on manual refresh or simpler polling if critical
     }, [fetchSubscriptions]);
 
     const handleApprove = async (subscriptionId) => {
@@ -69,19 +73,14 @@ const OwnerMessSubscriptionsPage = () => {
         }
     };
 
-    const getStatusBadge = (status) => {
-        const styles = {
-            Active: 'bg-green-100 text-green-800',
-            Pending: 'bg-yellow-100 text-yellow-800',
-            Rejected: 'bg-red-100 text-red-800',
-            Cancelled: 'bg-gray-100 text-gray-800'
-        };
-
-        return (
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${styles[status] || 'bg-gray-100'}`}>
-                {status}
-            </span>
-        );
+    const getStatusVariant = (status) => {
+        switch (status) {
+            case 'Active': return 'success';
+            case 'Pending': return 'warning';
+            case 'Rejected': return 'error';
+            case 'Cancelled': return 'gray';
+            default: return 'gray';
+        }
     };
 
     const tabs = [
@@ -92,26 +91,26 @@ const OwnerMessSubscriptionsPage = () => {
     ];
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4">
-            <div className="max-w-6xl mx-auto">
+        <div className="owner-mess-page">
+            <div className="container">
                 {/* Header */}
-                <div className="flex items-center justify-between mb-8">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-900">Subscription Requests</h1>
-                        <p className="text-gray-600 mt-1">Manage subscription requests for your mess services</p>
+                <div className="page-header">
+                    <div className="header-info">
+                        <h1>Subscription Requests</h1>
+                        <p>Manage subscription requests for your mess services</p>
                     </div>
-                    <button
+                    <Button
                         onClick={fetchSubscriptions}
                         disabled={loading}
-                        className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow hover:shadow-md transition-all disabled:opacity-50"
+                        variant="secondary"
+                        leftIcon={<HiOutlineRefresh className={loading ? 'spin' : ''} size={20} />}
                     >
-                        <HiOutlineRefresh className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
                         Refresh
-                    </button>
+                    </Button>
                 </div>
 
                 {/* Tabs */}
-                <div className="flex gap-2 mb-6 bg-white p-2 rounded-xl shadow-sm">
+                <div className="tabs-container">
                     {tabs.map(tab => (
                         <button
                             key={tab.id}
@@ -119,12 +118,9 @@ const OwnerMessSubscriptionsPage = () => {
                                 setActiveTab(tab.id);
                                 setPagination(p => ({ ...p, page: 1 }));
                             }}
-                            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all ${activeTab === tab.id
-                                ? 'bg-indigo-600 text-white'
-                                : 'text-gray-600 hover:bg-gray-100'
-                                }`}
+                            className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
                         >
-                            <tab.icon className="w-5 h-5" />
+                            <tab.icon size={20} />
                             {tab.label}
                         </button>
                     ))}
@@ -132,23 +128,20 @@ const OwnerMessSubscriptionsPage = () => {
 
                 {/* Loading State */}
                 {loading ? (
-                    <div className="flex items-center justify-center py-20">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+                    <div className="loading-state">
+                        <Loading size="lg" text="Loading subscriptions..." />
                     </div>
                 ) : subscriptions.length === 0 ? (
-                    <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
-                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <HiOutlineCalendar className="w-8 h-8 text-gray-400" />
-                        </div>
-                        <h3 className="text-xl font-semibold text-gray-900 mb-2">No subscription requests</h3>
-                        <p className="text-gray-600">
-                            {activeTab === 'pending'
-                                ? "No pending subscription requests at the moment."
-                                : `No ${activeTab} subscriptions found.`}
-                        </p>
-                    </div>
+                    <EmptyState
+                        icon={HiOutlineCalendar}
+                        title="No subscription requests"
+                        description={activeTab === 'pending'
+                            ? "No pending subscription requests at the moment."
+                            : `No ${activeTab} subscriptions found.`
+                        }
+                    />
                 ) : (
-                    <div className="space-y-4">
+                    <div className="subscriptions-list">
                         <AnimatePresence>
                             {subscriptions.map((subscription, index) => (
                                 <motion.div
@@ -157,58 +150,57 @@ const OwnerMessSubscriptionsPage = () => {
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -20 }}
                                     transition={{ delay: index * 0.05 }}
-                                    className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all p-6"
                                 >
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex gap-4">
+                                    <Card className="sub-card" padding="lg">
+                                        <div className="sub-info-container">
                                             {/* User Avatar */}
-                                            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold">
+                                            <div className="user-avatar">
                                                 {subscription.user?.name?.charAt(0) || 'U'}
                                             </div>
 
                                             {/* Subscription Info */}
-                                            <div>
-                                                <div className="flex items-center gap-3 mb-2">
-                                                    <h3 className="text-lg font-bold text-gray-900">
-                                                        {subscription.user?.name || 'Unknown User'}
-                                                    </h3>
-                                                    {getStatusBadge(subscription.status)}
+                                            <div className="sub-details">
+                                                <div className="sub-header">
+                                                    <h3>{subscription.user?.name || 'Unknown User'}</h3>
+                                                    <Badge variant={getStatusVariant(subscription.status)}>
+                                                        {subscription.status}
+                                                    </Badge>
                                                 </div>
 
-                                                <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 mb-3">
-                                                    <span className="flex items-center gap-1">
-                                                        <HiOutlineMail className="w-4 h-4" />
+                                                <div className="sub-contact">
+                                                    <span className="contact-item">
+                                                        <HiOutlineMail size={16} />
                                                         {subscription.user?.email}
                                                     </span>
                                                     {subscription.user?.phone && (
-                                                        <span className="flex items-center gap-1">
-                                                            <HiOutlinePhone className="w-4 h-4" />
+                                                        <span className="contact-item">
+                                                            <HiOutlinePhone size={16} />
                                                             {subscription.user?.phone}
                                                         </span>
                                                     )}
                                                 </div>
 
-                                                <div className="flex flex-wrap gap-3 text-sm">
-                                                    <span className="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg">
+                                                <div className="sub-meta">
+                                                    <span className="meta-tag primary">
                                                         {subscription.mess?.name}
                                                     </span>
-                                                    <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg flex items-center gap-1">
-                                                        <HiOutlineCurrencyRupee className="w-4 h-4" />
+                                                    <span className="meta-tag">
+                                                        <HiOutlineCurrencyRupee size={16} />
                                                         ₹{subscription.amount}
                                                     </span>
-                                                    <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg">
+                                                    <span className="meta-tag">
                                                         {subscription.plan?.replace('-', ' ')}
                                                     </span>
-                                                    <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg flex items-center gap-1">
-                                                        <HiOutlineCalendar className="w-4 h-4" />
+                                                    <span className="meta-tag">
+                                                        <HiOutlineCalendar size={16} />
                                                         {new Date(subscription.startDate).toLocaleDateString()}
                                                     </span>
                                                 </div>
 
                                                 {subscription.selectedMeals?.length > 0 && (
-                                                    <div className="flex flex-wrap gap-2 mt-3">
+                                                    <div className="meals-list">
                                                         {subscription.selectedMeals.map(meal => (
-                                                            <span key={meal} className="px-2 py-1 bg-orange-50 text-orange-700 rounded text-xs">
+                                                            <span key={meal} className="meal-tag">
                                                                 {meal}
                                                             </span>
                                                         ))}
@@ -216,58 +208,58 @@ const OwnerMessSubscriptionsPage = () => {
                                                 )}
 
                                                 {subscription.specialInstructions && (
-                                                    <p className="mt-3 text-sm text-gray-600 italic">
+                                                    <div className="special-instructions">
                                                         "{subscription.specialInstructions}"
-                                                    </p>
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>
 
                                         {/* Actions */}
-                                        <div className="flex flex-col gap-2">
+                                        <div className="sub-actions">
                                             {subscription.status === 'Pending' && (
                                                 <>
-                                                    <button
+                                                    <Button
                                                         onClick={() => handleApprove(subscription._id)}
-                                                        className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all"
+                                                        variant="success"
+                                                        leftIcon={<HiOutlineCheck size={20} />}
+                                                        fullWidth
                                                     >
-                                                        <HiOutlineCheck className="w-5 h-5" />
                                                         Approve
-                                                    </button>
-                                                    <button
+                                                    </Button>
+                                                    <Button
                                                         onClick={() => setRejectModal({ open: true, subscriptionId: subscription._id, reason: '' })}
-                                                        className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-all"
+                                                        variant="danger"
+                                                        leftIcon={<HiOutlineX size={20} />}
+                                                        fullWidth
                                                     >
-                                                        <HiOutlineX className="w-5 h-5" />
                                                         Reject
-                                                    </button>
+                                                    </Button>
                                                 </>
                                             )}
                                             {subscription.status === 'Active' && (
-                                                <button
-                                                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all"
+                                                <Button
+                                                    variant="primary"
+                                                    leftIcon={<HiOutlineChatAlt2 size={20} />}
+                                                    fullWidth
                                                 >
-                                                    <HiOutlineChatAlt2 className="w-5 h-5" />
                                                     Chat
-                                                </button>
+                                                </Button>
                                             )}
                                         </div>
-                                    </div>
+                                    </Card>
                                 </motion.div>
                             ))}
                         </AnimatePresence>
 
                         {/* Pagination */}
                         {pagination.pages > 1 && (
-                            <div className="flex justify-center gap-2 mt-6">
+                            <div className="pagination">
                                 {Array.from({ length: pagination.pages }, (_, i) => i + 1).map(page => (
                                     <button
                                         key={page}
                                         onClick={() => setPagination(p => ({ ...p, page }))}
-                                        className={`w-10 h-10 rounded-lg font-medium transition-all ${pagination.page === page
-                                            ? 'bg-indigo-600 text-white'
-                                            : 'bg-white text-gray-600 hover:bg-gray-100'
-                                            }`}
+                                        className={`page-btn ${pagination.page === page ? 'active' : ''}`}
                                     >
                                         {page}
                                     </button>
@@ -280,34 +272,34 @@ const OwnerMessSubscriptionsPage = () => {
 
             {/* Reject Modal */}
             {rejectModal.open && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="modal-overlay">
                     <motion.div
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className="bg-white rounded-2xl p-6 max-w-md w-full"
+                        className="modal-content"
                     >
-                        <h3 className="text-xl font-bold text-gray-900 mb-4">Reject Subscription</h3>
-                        <p className="text-gray-600 mb-4">Please provide a reason for rejection (optional):</p>
+                        <h3>Reject Subscription</h3>
+                        <p>Please provide a reason for rejection (optional):</p>
                         <textarea
                             value={rejectModal.reason}
                             onChange={(e) => setRejectModal(m => ({ ...m, reason: e.target.value }))}
                             placeholder="Enter reason..."
-                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
-                            rows={3}
                         />
-                        <div className="flex gap-3 mt-6">
-                            <button
+                        <div className="modal-actions">
+                            <Button
                                 onClick={() => setRejectModal({ open: false, subscriptionId: null, reason: '' })}
-                                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all"
+                                variant="secondary"
+                                fullWidth
                             >
                                 Cancel
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                                 onClick={handleReject}
-                                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all"
+                                variant="danger"
+                                fullWidth
                             >
                                 Reject
-                            </button>
+                            </Button>
                         </div>
                     </motion.div>
                 </div>

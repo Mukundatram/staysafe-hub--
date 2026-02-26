@@ -1,23 +1,30 @@
-import React, { useState } from 'react';
+import '../styles/RegisterPage.css';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
-import { 
-  HiOutlineUser, 
-  HiOutlineMail, 
-  HiOutlineLockClosed, 
+import {
+  HiOutlineUser,
+  HiOutlineMail,
+  HiOutlineLockClosed,
   HiOutlineShieldCheck,
   HiOutlineAcademicCap,
   HiOutlineHome,
-  HiOutlineCheck,
-  HiOutlineCog
+  HiOutlineCog,
+  HiOutlineCheck
 } from 'react-icons/hi';
+import useDocumentTitle from '../../hooks/useDocumentTitle';
 
 const RegisterPage = () => {
+  useDocumentTitle('Register - StaySafe Hub');
   const [searchParams] = useSearchParams();
   const initialRole = searchParams.get('role') || 'student';
+
+  // Step 1: form, Step 2: OTP
+  const [step, setStep] = useState(1);
+  const [pendingUserId, setPendingUserId] = useState(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -26,9 +33,13 @@ const RegisterPage = () => {
     confirmPassword: '',
     role: initialRole,
   });
+
+  const [otp, setOtp] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
+
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
-  const { register } = useAuth();
+  const { register, verifyOtp, resendOtp } = useAuth();
   const navigate = useNavigate();
 
   const roles = [
@@ -52,11 +63,16 @@ const RegisterPage = () => {
     },
   ];
 
-  const validateForm = () => {
+  // Cooldown timer for resend OTP
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => setResendCooldown(prev => prev - 1), 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  const validateStep1 = () => {
     const newErrors = {};
-    if (!formData.name.trim()) {
-      newErrors.name = 'Name is required';
-    }
+    if (!formData.name.trim()) newErrors.name = 'Name is required';
     if (!formData.email) {
       newErrors.email = 'Email is required';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
@@ -74,9 +90,9 @@ const RegisterPage = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e) => {
+  const handleRegisterSubmit = async (e) => {
     e.preventDefault();
-    if (!validateForm()) return;
+    if (!validateStep1()) return;
 
     setIsLoading(true);
     const result = await register(
@@ -88,7 +104,24 @@ const RegisterPage = () => {
     setIsLoading(false);
 
     if (result.success) {
-      // Redirect to appropriate dashboard based on role
+      setPendingUserId(result.pendingUserId);
+      setStep(2);
+      setResendCooldown(60); // 1 minute cooldown
+    }
+  };
+
+  const handleOtpSubmit = async (e) => {
+    e.preventDefault();
+    if (!otp || otp.length < 6) {
+      setErrors({ otp: 'Please enter the 6-digit code' });
+      return;
+    }
+
+    setIsLoading(true);
+    const result = await verifyOtp(pendingUserId, otp);
+    setIsLoading(false);
+
+    if (result.success) {
       const dashboardPaths = {
         student: '/dashboard',
         owner: '/owner/dashboard',
@@ -99,12 +132,27 @@ const RegisterPage = () => {
     }
   };
 
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0) return;
+    setIsLoading(true);
+    const result = await resendOtp(pendingUserId);
+    setIsLoading(false);
+    if (result.success) {
+      setResendCooldown(60);
+    }
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
+  };
+
+  // Google Sign In (skips OTP since Google verifies email)
+  const handleGoogleSignIn = () => {
+    window.location.href = `/api/auth/google?role=${formData.role}`;
   };
 
   return (
@@ -122,26 +170,14 @@ const RegisterPage = () => {
             </div>
             <h1>Join StaySafeHub</h1>
             <p>
-              Create your account and become part of the safest housing 
+              Create your account and become part of the safest housing
               community for students and interns.
             </p>
             <ul className="feature-list">
-              <li>
-                <HiOutlineCheck className="check-icon" />
-                Verified and safe accommodations
-              </li>
-              <li>
-                <HiOutlineCheck className="check-icon" />
-                Transparent pricing, no hidden fees
-              </li>
-              <li>
-                <HiOutlineCheck className="check-icon" />
-                24/7 emergency support
-              </li>
-              <li>
-                <HiOutlineCheck className="check-icon" />
-                Women-first safety features
-              </li>
+              <li><HiOutlineCheck className="check-icon" /> Verified and safe accommodations</li>
+              <li><HiOutlineCheck className="check-icon" /> Transparent pricing, no hidden fees</li>
+              <li><HiOutlineCheck className="check-icon" /> 24/7 emergency support</li>
+              <li><HiOutlineCheck className="check-icon" /> Women-first safety features</li>
             </ul>
           </div>
         </div>
@@ -149,332 +185,197 @@ const RegisterPage = () => {
         {/* Right Side - Form */}
         <div className="auth-form-container">
           <div className="auth-form-wrapper">
-            <div className="form-header">
-              <h2>Create Account</h2>
-              <p>Fill in your details to get started</p>
-            </div>
 
-            {/* Role Selection */}
-            <div className="role-selection">
-              {roles.map((role) => (
-                <button
-                  key={role.id}
-                  type="button"
-                  className={`role-option ${formData.role === role.id ? 'active' : ''}`}
-                  onClick={() => setFormData(prev => ({ ...prev, role: role.id }))}
+            <AnimatePresence mode="wait">
+              {step === 1 ? (
+                <motion.div
+                  key="step1"
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
                 >
-                  <role.icon size={24} />
-                  <span className="role-label">{role.label}</span>
-                  <span className="role-desc">{role.description}</span>
-                </button>
-              ))}
-            </div>
+                  <div className="form-header">
+                    <h2>Create Account</h2>
+                    <p>Fill in your details to get started</p>
+                  </div>
 
-            <form onSubmit={handleSubmit} className="auth-form">
-              <div className="form-group">
-                <Input
-                  label="Full Name"
-                  type="text"
-                  name="name"
-                  placeholder="Enter your full name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  error={errors.name}
-                  leftIcon={<HiOutlineUser size={20} />}
-                />
-              </div>
+                  <div className="role-selection">
+                    {roles.map((role) => (
+                      <button
+                        key={role.id}
+                        type="button"
+                        className={`role-option ${formData.role === role.id ? 'active' : ''}`}
+                        onClick={() => setFormData(prev => ({ ...prev, role: role.id }))}
+                      >
+                        <role.icon size={24} />
+                        <span className="role-label">{role.label}</span>
+                        <span className="role-desc">{role.description}</span>
+                      </button>
+                    ))}
+                  </div>
 
-              <div className="form-group">
-                <Input
-                  label="Email Address"
-                  type="email"
-                  name="email"
-                  placeholder="Enter your email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  error={errors.email}
-                  leftIcon={<HiOutlineMail size={20} />}
-                />
-              </div>
+                  <form onSubmit={handleRegisterSubmit} className="auth-form">
+                    <div className="form-group">
+                      <Input
+                        label="Full Name"
+                        type="text"
+                        name="name"
+                        placeholder="Enter your full name"
+                        value={formData.name}
+                        onChange={handleChange}
+                        error={errors.name}
+                        leftIcon={<HiOutlineUser size={20} />}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <Input
+                        label="Email Address"
+                        type="email"
+                        name="email"
+                        placeholder="Enter your email"
+                        value={formData.email}
+                        onChange={handleChange}
+                        error={errors.email}
+                        leftIcon={<HiOutlineMail size={20} />}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <Input
+                        label="Password"
+                        type="password"
+                        name="password"
+                        placeholder="Create a password"
+                        value={formData.password}
+                        onChange={handleChange}
+                        error={errors.password}
+                        leftIcon={<HiOutlineLockClosed size={20} />}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <Input
+                        label="Confirm Password"
+                        type="password"
+                        name="confirmPassword"
+                        placeholder="Confirm your password"
+                        value={formData.confirmPassword}
+                        onChange={handleChange}
+                        error={errors.confirmPassword}
+                        leftIcon={<HiOutlineLockClosed size={20} />}
+                      />
+                    </div>
 
-              <div className="form-group">
-                <Input
-                  label="Password"
-                  type="password"
-                  name="password"
-                  placeholder="Create a password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  error={errors.password}
-                  leftIcon={<HiOutlineLockClosed size={20} />}
-                />
-              </div>
+                    <div className="terms-agreement">
+                      <label className="checkbox-label">
+                        <input type="checkbox" required />
+                        <span>
+                          I agree to the <Link to="/terms">Terms</Link> and <Link to="/privacy">Privacy Policy</Link>
+                        </span>
+                      </label>
+                    </div>
 
-              <div className="form-group">
-                <Input
-                  label="Confirm Password"
-                  type="password"
-                  name="confirmPassword"
-                  placeholder="Confirm your password"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  error={errors.confirmPassword}
-                  leftIcon={<HiOutlineLockClosed size={20} />}
-                />
-              </div>
+                    <Button type="submit" variant="primary" size="lg" fullWidth isLoading={isLoading}>
+                      Continue
+                    </Button>
 
-              <div className="terms-agreement">
-                <label className="checkbox-label">
-                  <input type="checkbox" required />
-                  <span>
-                    I agree to the{' '}
-                    <Link to="/terms">Terms of Service</Link> and{' '}
-                    <Link to="/privacy">Privacy Policy</Link>
-                  </span>
-                </label>
-              </div>
+                    <div style={{ marginTop: '0.75rem', position: 'relative' }}>
+                      <div className="divider" style={{
+                        display: 'flex', alignItems: 'center', textAlign: 'center', color: '#9ca3af', margin: '15px 0'
+                      }}>
+                        <div style={{ flex: 1, borderBottom: '1px solid #e5e7eb' }}></div>
+                        <span style={{ padding: '0 10px', fontSize: '0.875rem' }}>or</span>
+                        <div style={{ flex: 1, borderBottom: '1px solid #e5e7eb' }}></div>
+                      </div>
 
-              <Button
-                type="submit"
-                variant="primary"
-                size="lg"
-                fullWidth
-                isLoading={isLoading}
-              >
-                Create Account
-              </Button>
-            </form>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="lg"
+                        fullWidth
+                        onClick={handleGoogleSignIn}
+                      >
+                        Sign up with Google
+                      </Button>
+                    </div>
+                  </form>
 
-            <div className="auth-footer">
-              <p>
-                Already have an account?{' '}
-                <Link to="/login" className="auth-link">
-                  Sign in
-                </Link>
-              </p>
-            </div>
+                  <div className="auth-footer" style={{ marginTop: '1.5rem' }}>
+                    <p>
+                      Already have an account? <Link to="/login" className="auth-link">Sign in</Link>
+                    </p>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="step2"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                >
+                  <div className="form-header">
+                    <h2>Verify Your Email</h2>
+                    <p>We've sent a 6-digit verification code to <strong style={{ color: '#4f46e5' }}>{formData.email}</strong></p>
+                  </div>
+
+                  <form onSubmit={handleOtpSubmit} className="auth-form" style={{ marginTop: '30px' }}>
+                    <div className="form-group">
+                      <Input
+                        label="Verification Code"
+                        type="text"
+                        name="otp"
+                        placeholder="Enter 6-digit code"
+                        value={otp}
+                        onChange={(e) => {
+                          setOtp(e.target.value);
+                          if (errors.otp) setErrors({});
+                        }}
+                        error={errors.otp}
+                        style={{ textAlign: 'center', letterSpacing: '4px', fontSize: '1.2rem', fontWeight: 'bold' }}
+                        maxLength={6}
+                      />
+                    </div>
+
+                    <Button type="submit" variant="primary" size="lg" fullWidth isLoading={isLoading}>
+                      Verify & Complete Registration
+                    </Button>
+
+                    <div className="resend-container" style={{ textAlign: 'center', marginTop: '20px' }}>
+                      <p style={{ color: '#6b7280', fontSize: '14px' }}>
+                        Didn't receive the code?{' '}
+                        {resendCooldown > 0 ? (
+                          <span>Resend in {resendCooldown}s</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleResendOtp}
+                            disabled={isLoading}
+                            style={{
+                              background: 'none', border: 'none', color: '#4f46e5',
+                              fontWeight: '600', cursor: 'pointer', padding: 0
+                            }}
+                          >
+                            Resend Code
+                          </button>
+                        )}
+                      </p>
+                    </div>
+                  </form>
+
+                  <div className="auth-footer" style={{ marginTop: '2rem', textAlign: 'center' }}>
+                    <button
+                      className="auth-link"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                      onClick={() => setStep(1)}
+                    >
+                      &larr; Back to Registration
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
           </div>
         </div>
       </motion.div>
-
-      <style>{`
-        .auth-page {
-          min-height: calc(100vh - 80px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 2rem 1rem;
-          background: var(--bg-secondary);
-        }
-
-        .auth-container.register {
-          display: grid;
-          width: 100%;
-          max-width: 1100px;
-          background: var(--bg-card);
-          border-radius: var(--radius-xl);
-          overflow: hidden;
-          box-shadow: var(--shadow-xl);
-        }
-
-        @media (min-width: 768px) {
-          .auth-container.register {
-            grid-template-columns: 1fr 1.2fr;
-          }
-        }
-
-        .auth-branding {
-          background: var(--accent-gradient);
-          padding: 3rem;
-          display: none;
-        }
-
-        @media (min-width: 768px) {
-          .auth-branding {
-            display: flex;
-            align-items: center;
-          }
-        }
-
-        .branding-content {
-          color: white;
-        }
-
-        .brand-logo {
-          width: 80px;
-          height: 80px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: rgba(255, 255, 255, 0.2);
-          border-radius: var(--radius-lg);
-          margin-bottom: 2rem;
-        }
-
-        .branding-content h1 {
-          font-size: 2rem;
-          color: white;
-          margin-bottom: 1rem;
-        }
-
-        .branding-content p {
-          color: rgba(255, 255, 255, 0.9);
-          line-height: 1.7;
-          margin-bottom: 2rem;
-        }
-
-        .feature-list {
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
-        }
-
-        .feature-list li {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-          font-size: 0.9375rem;
-        }
-
-        .check-icon {
-          width: 24px;
-          height: 24px;
-          padding: 4px;
-          background: rgba(255, 255, 255, 0.2);
-          border-radius: var(--radius-full);
-        }
-
-        .auth-form-container {
-          padding: 2.5rem 2rem;
-          overflow-y: auto;
-          max-height: 90vh;
-        }
-
-        @media (min-width: 768px) {
-          .auth-form-container {
-            padding: 3rem;
-          }
-        }
-
-        .auth-form-wrapper {
-          max-width: 400px;
-          margin: 0 auto;
-        }
-
-        .form-header {
-          text-align: center;
-          margin-bottom: 1.5rem;
-        }
-
-        .form-header h2 {
-          font-size: 1.75rem;
-          margin-bottom: 0.5rem;
-        }
-
-        .form-header p {
-          color: var(--text-secondary);
-        }
-
-        .role-selection {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 1rem;
-          margin-bottom: 1.5rem;
-        }
-
-        .role-option {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 1rem;
-          background: var(--bg-secondary);
-          border: 2px solid var(--border-light);
-          border-radius: var(--radius-lg);
-          color: var(--text-secondary);
-          transition: all var(--transition-fast);
-          text-align: center;
-        }
-
-        .role-option:hover {
-          border-color: var(--accent-primary);
-        }
-
-        .role-option.active {
-          background: var(--accent-gradient-soft);
-          border-color: var(--accent-primary);
-          color: var(--accent-primary);
-        }
-
-        .role-label {
-          font-weight: 600;
-          font-size: 0.875rem;
-          color: var(--text-primary);
-        }
-
-        .role-option.active .role-label {
-          color: var(--accent-primary);
-        }
-
-        .role-desc {
-          font-size: 0.75rem;
-          line-height: 1.4;
-        }
-
-        .auth-form {
-          display: flex;
-          flex-direction: column;
-          gap: 0.25rem;
-        }
-
-        .terms-agreement {
-          margin: 1rem 0 1.5rem;
-        }
-
-        .checkbox-label {
-          display: flex;
-          gap: 0.75rem;
-          font-size: 0.875rem;
-          color: var(--text-secondary);
-          cursor: pointer;
-          line-height: 1.5;
-        }
-
-        .checkbox-label input {
-          width: 18px;
-          height: 18px;
-          accent-color: var(--accent-primary);
-          flex-shrink: 0;
-          margin-top: 2px;
-        }
-
-        .checkbox-label a {
-          color: var(--accent-primary);
-          font-weight: 500;
-        }
-
-        .checkbox-label a:hover {
-          text-decoration: underline;
-        }
-
-        .auth-footer {
-          margin-top: 2rem;
-          text-align: center;
-        }
-
-        .auth-footer p {
-          color: var(--text-secondary);
-        }
-
-        .auth-link {
-          color: var(--accent-primary);
-          font-weight: 600;
-        }
-
-        .auth-link:hover {
-          text-decoration: underline;
-        }
-      `}</style>
     </div>
   );
 };

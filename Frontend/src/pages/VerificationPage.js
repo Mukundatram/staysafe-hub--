@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  FiShield, 
-  FiCheck, 
-  FiClock, 
+import {
+  FiShield,
+  FiCheck,
+  FiClock,
   FiAlertCircle,
   FiUser,
   FiMapPin,
@@ -21,19 +21,25 @@ import { useAuth } from '../context/AuthContext';
 import documentService from '../services/documentService';
 import aadhaarService from '../services/aadhaarService';
 import verificationService from '../services/verificationService';
+import ConfirmModal from '../components/ui/ConfirmModal';
+import useDocumentTitle from '../hooks/useDocumentTitle';
 
 const VerificationPage = () => {
+  useDocumentTitle('Verification');
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [documents, setDocuments] = useState([]);
   const [verificationStatus, setVerificationStatus] = useState(null);
   const [activeTab, setActiveTab] = useState(user?.role === 'owner' ? 'property' : 'identity');
   const [refreshing, setRefreshing] = useState(false);
-  
+
   const [file, setFile] = useState(null);
   const [documentType, setDocumentType] = useState('');
+  const [collegeName, setCollegeName] = useState('');
+  const [graduationYear, setGraduationYear] = useState('');
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -62,18 +68,18 @@ const VerificationPage = () => {
 
   const getDocumentTypes = () => {
     const types = {
-      identity: user?.role === 'owner' 
+      identity: user?.role === 'owner'
         ? [
-            { value: 'pan', label: 'PAN Card' },
-            { value: 'passport', label: 'Passport' },
-            { value: 'driving_license', label: 'Driving License' }
-          ]
+          { value: 'pan', label: 'PAN Card' },
+          { value: 'passport', label: 'Passport' },
+          { value: 'driving_license', label: 'Driving License' }
+        ]
         : [
-            { value: 'student_id', label: '⭐ Student ID Card' },
-            { value: 'college_id', label: '⭐ College/University ID' },
-            { value: 'pan', label: 'PAN Card' },
-            { value: 'passport', label: 'Passport' }
-          ],
+          { value: 'student_id', label: '⭐ Student ID Card' },
+          { value: 'college_id', label: '⭐ College/University ID' },
+          { value: 'pan', label: 'PAN Card' },
+          { value: 'passport', label: 'Passport' }
+        ],
       address: [
         { value: 'utility_bill', label: 'Utility Bill' },
         { value: 'bank_statement', label: 'Bank Statement' },
@@ -127,15 +133,35 @@ const VerificationPage = () => {
       toast.error('Please select a file and document type');
       return;
     }
+
+    if ((documentType === 'student_id' || documentType === 'college_id') && (!collegeName || !graduationYear)) {
+      toast.error('Please provide your College Name and Expected Graduation Year');
+      return;
+    }
+
     setUploading(true);
     try {
       const formData = new FormData();
       formData.append('document', file);
       formData.append('documentType', documentType);
+
+      if (documentType === 'student_id' || documentType === 'college_id') {
+        formData.append('collegeName', collegeName);
+        formData.append('graduationYear', graduationYear);
+      }
+
       const response = await documentService.uploadDocument(formData);
-      toast.success('Document uploaded successfully!');
+
+      if (response.isInstantlyVerified) {
+        toast.success('🎉 Instantly Verified as a Student!', { duration: 5000 });
+      } else {
+        toast.success(response.message || 'Document uploaded successfully!');
+      }
+
       setFile(null);
       setDocumentType('');
+      setCollegeName('');
+      setGraduationYear('');
       setDocuments(prev => [response.document, ...prev]);
       fetchData();
     } catch (error) {
@@ -146,14 +172,20 @@ const VerificationPage = () => {
   };
 
   const handleDeleteDocument = async (documentId) => {
-    if (!window.confirm('Are you sure you want to delete this document?')) return;
+    setConfirmDeleteId(documentId);
+  };
+
+  const confirmDeleteAction = async () => {
+    if (!confirmDeleteId) return;
     try {
-      await documentService.deleteDocument(documentId);
-      setDocuments(prev => prev.filter(d => d._id !== documentId));
+      await documentService.deleteDocument(confirmDeleteId);
+      setDocuments(prev => prev.filter(d => d._id !== confirmDeleteId));
       toast.success('Document deleted');
       fetchData();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to delete document');
+    } finally {
+      setConfirmDeleteId(null);
     }
   };
 
@@ -366,13 +398,13 @@ const VerificationPage = () => {
                 {user?.role === 'owner' ? 'Property Owner Verification' : 'Student Verification'}
               </h1>
               <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)', marginTop: '4px' }}>
-                {user?.role === 'owner' 
+                {user?.role === 'owner'
                   ? 'Verify your identity and property ownership'
                   : 'Verify your student status to book accommodations'}
               </p>
             </div>
           </div>
-          <button 
+          <button
             onClick={handleRefresh}
             disabled={refreshing}
             style={{
@@ -412,26 +444,26 @@ const VerificationPage = () => {
               Verify Aadhaar
             </button>
           )}
-            {user?.verificationState !== 'verified_student' && (
-              <button
-                onClick={() => setShowCollegeModal(true)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '10px 20px',
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--border-light)',
-                  borderRadius: '12px',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.875rem',
-                  fontWeight: '500',
-                  cursor: 'pointer'
-                }}
-              >
-                Verify College Email
-              </button>
-            )}
+          {user?.verificationState !== 'verified_student' && (
+            <button
+              onClick={() => setShowCollegeModal(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 20px',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-light)',
+                borderRadius: '12px',
+                color: 'var(--text-primary)',
+                fontSize: '0.875rem',
+                fontWeight: '500',
+                cursor: 'pointer'
+              }}
+            >
+              Verify College Email
+            </button>
+          )}
         </div>
 
         {/* Status Cards */}
@@ -441,7 +473,7 @@ const VerificationPage = () => {
           gap: '1rem',
           marginBottom: '2rem'
         }}>
-          <StatusCard 
+          <StatusCard
             title="Identity Verification"
             verified={verificationStatus?.identity?.verified}
             icon={FiUser}
@@ -449,7 +481,7 @@ const VerificationPage = () => {
             verifiedCount={verificationStatus?.identity?.documents?.verified || 0}
             pending={verificationStatus?.identity?.documents?.pending || 0}
           />
-          <StatusCard 
+          <StatusCard
             title="Address Verification"
             verified={verificationStatus?.address?.verified}
             icon={FiMapPin}
@@ -458,7 +490,7 @@ const VerificationPage = () => {
             pending={verificationStatus?.address?.documents?.pending || 0}
           />
           {user?.role === 'owner' && (
-            <StatusCard 
+            <StatusCard
               title="Property Verification"
               verified={verificationStatus?.property?.verified}
               icon={FiHome}
@@ -495,14 +527,14 @@ const VerificationPage = () => {
                 {verificationStatus.overall ? "You're Fully Verified!" : 'Verification In Progress'}
               </p>
               <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: '4px 0 0' }}>
-                {verificationStatus.overall 
+                {verificationStatus.overall
                   ? 'All your documents have been verified.'
                   : 'Upload your documents and wait for admin verification.'}
               </p>
             </div>
           </motion.div>
         )}
-        )}
+
 
         {/* Aadhaar Modal */}
         {showAadhaarModal && (
@@ -517,7 +549,7 @@ const VerificationPage = () => {
                 <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Aadhaar Number</label>
                 <input
                   value={aadhaarNumber}
-                  onChange={(e) => setAadhaarNumber(e.target.value.replace(/[^0-9]/g, '').slice(0,12))}
+                  onChange={(e) => setAadhaarNumber(e.target.value.replace(/[^0-9]/g, '').slice(0, 12))}
                   placeholder="Enter 12-digit Aadhaar"
                   disabled={otpSent}
                   style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', fontSize: '0.95rem' }}
@@ -541,7 +573,7 @@ const VerificationPage = () => {
               {otpSent && (
                 <div style={{ marginTop: '12px' }}>
                   <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>Enter OTP</label>
-                  <input value={otp} onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, '').slice(0,6))} placeholder="123456" style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', fontSize: '0.95rem' }} />
+                  <input value={otp} onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))} placeholder="123456" style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', fontSize: '0.95rem' }} />
                   <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
                     <button onClick={verifyAadhaarOtp} disabled={aadhaarLoading} style={{ flex: 1, padding: '10px', borderRadius: '8px', background: 'var(--accent-gradient)', color: 'white', border: 'none', cursor: 'pointer' }}>{aadhaarLoading ? 'Verifying...' : 'Verify OTP'}</button>
                     <button onClick={sendAadhaarOtp} disabled={aadhaarLoading || otpCountdown > 0} style={{ padding: '10px', borderRadius: '8px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', cursor: 'pointer' }}>Resend</button>
@@ -689,9 +721,10 @@ const VerificationPage = () => {
                   type="file"
                   style={{ display: 'none' }}
                   accept=".jpg,.jpeg,.png,.pdf"
+                  capture="environment"
                   onChange={(e) => e.target.files[0] && validateAndSetFile(e.target.files[0])}
                 />
-                
+
                 {file ? (
                   <div>
                     <div style={{
@@ -704,7 +737,7 @@ const VerificationPage = () => {
                       justifyContent: 'center',
                       margin: '0 auto 12px'
                     }}>
-                      {file.type.startsWith('image/') 
+                      {file.type.startsWith('image/')
                         ? <FiImage size={24} color="white" />
                         : <FiFileText size={24} color="white" />
                       }
@@ -786,6 +819,54 @@ const VerificationPage = () => {
                   <option key={type.value} value={type.value}>{type.label}</option>
                 ))}
               </select>
+
+              {(documentType === 'student_id' || documentType === 'college_id') && (
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <div style={{ marginBottom: '1rem' }}>
+                    <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                      College / University Name <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={collegeName}
+                      onChange={(e) => setCollegeName(e.target.value)}
+                      placeholder="e.g. Stanford University"
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        borderRadius: '12px',
+                        border: '1px solid var(--border-light)',
+                        background: 'var(--bg-card)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.875rem'
+                      }}
+                    />
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '4px', marginBottom: 0 }}>
+                      Enter the exact name as it appears on your ID card for instant automated verification.
+                    </p>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                      Expected Graduation Year <span style={{ color: '#ef4444' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={graduationYear}
+                      onChange={(e) => setGraduationYear(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                      placeholder="e.g. 2026"
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        borderRadius: '12px',
+                        border: '1px solid var(--border-light)',
+                        background: 'var(--bg-card)',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.875rem'
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Upload Button */}
               <button
@@ -890,15 +971,15 @@ const VerificationPage = () => {
                             width: '48px',
                             height: '48px',
                             borderRadius: '12px',
-                            background: doc.mimeType?.startsWith('image/') 
-                              ? 'linear-gradient(135deg, #3b82f6, #6366f1)' 
+                            background: doc.mimeType?.startsWith('image/')
+                              ? 'linear-gradient(135deg, #3b82f6, #6366f1)'
                               : 'linear-gradient(135deg, #ef4444, #f43f5e)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             flexShrink: 0
                           }}>
-                            {doc.mimeType?.startsWith('image/') 
+                            {doc.mimeType?.startsWith('image/')
                               ? <FiImage size={20} color="white" />
                               : <FiFileText size={20} color="white" />
                             }
@@ -1052,6 +1133,16 @@ const VerificationPage = () => {
         </div>
       </div>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+      <ConfirmModal
+        isOpen={!!confirmDeleteId}
+        onClose={() => setConfirmDeleteId(null)}
+        onConfirm={confirmDeleteAction}
+        title="Delete Document?"
+        message="Are you sure you want to delete this document? This action cannot be undone."
+        confirmText="Delete"
+        variant="danger"
+      />
     </div>
   );
 };
@@ -1076,8 +1167,8 @@ const StatusCard = ({ title, verified, icon: Icon, total, verifiedCount, pending
           width: '48px',
           height: '48px',
           borderRadius: '12px',
-          background: verified 
-            ? 'linear-gradient(135deg, #10b981, #059669)' 
+          background: verified
+            ? 'linear-gradient(135deg, #10b981, #059669)'
             : 'linear-gradient(135deg, #6b7280, #4b5563)',
           display: 'flex',
           alignItems: 'center',
@@ -1106,7 +1197,7 @@ const StatusCard = ({ title, verified, icon: Icon, total, verifiedCount, pending
           </div>
         )}
       </div>
-      
+
       <div style={{ display: 'flex', gap: '8px', marginTop: '1rem' }}>
         <span style={{
           padding: '4px 10px',

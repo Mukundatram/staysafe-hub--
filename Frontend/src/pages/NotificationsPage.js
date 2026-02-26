@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { 
-  HiOutlineBell, 
-  HiOutlineCheck, 
+import {
+  HiOutlineBell,
+  HiOutlineCheck,
   HiOutlineTrash,
   HiOutlineCheckCircle,
   HiOutlineXCircle,
@@ -14,10 +14,13 @@ import {
   HiOutlineChevronRight
 } from 'react-icons/hi';
 import { notificationService } from '../services/propertyService';
+import useDocumentTitle from '../hooks/useDocumentTitle';
+import Loading from '../components/ui/Loading';
 import { formatDistanceToNow, format } from 'date-fns';
 import toast from 'react-hot-toast';
 
 const NotificationsPage = () => {
+  useDocumentTitle('Notifications');
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
@@ -45,7 +48,7 @@ const NotificationsPage = () => {
     try {
       if (!notification.read) {
         await notificationService.markAsRead(notification._id);
-        setNotifications(prev => 
+        setNotifications(prev =>
           prev.map(n => n._id === notification._id ? { ...n, read: true } : n)
         );
       }
@@ -129,8 +132,7 @@ const NotificationsPage = () => {
 
           {loading ? (
             <div className="loading-state">
-              <div className="spinner"></div>
-              <p>Loading notifications...</p>
+              <Loading text="Loading notifications..." />
             </div>
           ) : notifications.length === 0 ? (
             <div className="empty-state">
@@ -169,7 +171,7 @@ const NotificationsPage = () => {
                       {!notification.read && (
                         <span className="unread-indicator" title="Unread" />
                       )}
-                      <button 
+                      <button
                         className="delete-btn"
                         onClick={(e) => handleDelete(e, notification._id)}
                         title="Delete"
@@ -183,7 +185,7 @@ const NotificationsPage = () => {
 
               {pagination.pages > 1 && (
                 <div className="pagination">
-                  <button 
+                  <button
                     className="page-btn"
                     disabled={pagination.page <= 1}
                     onClick={() => fetchNotifications(pagination.page - 1)}
@@ -194,7 +196,7 @@ const NotificationsPage = () => {
                   <span className="page-info">
                     Page {pagination.page} of {pagination.pages}
                   </span>
-                  <button 
+                  <button
                     className="page-btn"
                     disabled={pagination.page >= pagination.pages}
                     onClick={() => fetchNotifications(pagination.page + 1)}

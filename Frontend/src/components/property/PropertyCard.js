@@ -1,22 +1,19 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import Badge from '../ui/Badge';
 import { useWishlist } from '../../context/WishlistContext';
 import { useAuth } from '../../context/AuthContext';
-import { 
+import {
   HiOutlineLocationMarker,
   HiOutlineCurrencyRupee,
-  HiOutlineShieldCheck,
   HiOutlineHeart,
-  HiHeart,
-  HiOutlineCheck
+  HiHeart
 } from 'react-icons/hi';
 
 const PropertyCard = ({ property, showActions = true }) => {
   const { isInWishlist, toggleWishlist } = useWishlist();
   const { user } = useAuth();
-  
+
   const {
     _id,
     title,
@@ -26,7 +23,6 @@ const PropertyCard = ({ property, showActions = true }) => {
     amenities = [],
     meals = [],
     images = [],
-    isAvailable,
   } = property;
 
   const isFavorite = isInWishlist(_id);
@@ -38,8 +34,8 @@ const PropertyCard = ({ property, showActions = true }) => {
   };
 
   // Use actual property image if available, otherwise use placeholder
-  const imageUrl = images && images.length > 0 
-    ? `http://localhost:4000${images[0]}` 
+  const imageUrl = images && images.length > 0
+    ? `http://localhost:4000${images[0]}`
     : `https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=400&h=250&fit=crop&auto=format`;
 
   return (
@@ -51,17 +47,8 @@ const PropertyCard = ({ property, showActions = true }) => {
         {/* Image */}
         <div className="property-image">
           <img src={imageUrl} alt={title} loading="lazy" />
-          <div className="image-overlay">
-            {isAvailable ? (
-              <Badge variant="success" icon={<HiOutlineCheck size={12} />}>
-                Available
-              </Badge>
-            ) : (
-              <Badge variant="warning">Booked</Badge>
-            )}
-          </div>
           {showActions && user && (
-            <button 
+            <button
               className={`wishlist-btn ${isFavorite ? 'active' : ''}`}
               onClick={handleWishlistClick}
               title={isFavorite ? 'Remove from wishlist' : 'Add to wishlist'}
@@ -73,14 +60,6 @@ const PropertyCard = ({ property, showActions = true }) => {
 
         {/* Content */}
         <div className="property-content">
-          {/* Header */}
-          <div className="property-header">
-            <div className="verified-badge">
-              <HiOutlineShieldCheck size={16} />
-              <span>Verified</span>
-            </div>
-          </div>
-
           {/* Title */}
           <h3 className="property-title">{title}</h3>
 
@@ -163,12 +142,6 @@ const PropertyCard = ({ property, showActions = true }) => {
           transform: scale(1.05);
         }
 
-        .image-overlay {
-          position: absolute;
-          top: 1rem;
-          left: 1rem;
-        }
-
         .wishlist-btn {
           position: absolute;
           top: 1rem;
@@ -204,22 +177,6 @@ const PropertyCard = ({ property, showActions = true }) => {
 
         .property-content {
           padding: 1.25rem;
-        }
-
-        .property-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 0.75rem;
-        }
-
-        .verified-badge {
-          display: flex;
-          align-items: center;
-          gap: 0.375rem;
-          color: var(--success);
-          font-size: 0.75rem;
-          font-weight: 600;
         }
 
         .property-title {

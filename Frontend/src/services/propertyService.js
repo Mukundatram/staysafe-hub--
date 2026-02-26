@@ -85,6 +85,16 @@ export const bookingService = {
     const response = await api.patch(`/bookings/cancel/${bookingId}`);
     return response.data;
   },
+
+  // Create booking with file uploads (for additional members with ID proofs)
+  createWithFiles: async (propertyId, formData) => {
+    const response = await api.post(`/bookings/book/${propertyId}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
 };
 
 export const chatService = {

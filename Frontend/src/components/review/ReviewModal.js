@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   HiStar,
@@ -23,6 +23,25 @@ const ReviewModal = ({ isOpen, onClose, booking, messSubscription, onReviewSubmi
     service: 0
   });
   const [submitting, setSubmitting] = useState(false);
+
+  // Reset form state when modal opens or when switching between bookings/subscriptions
+  useEffect(() => {
+    if (isOpen) {
+      setRating(0);
+      setHoverRating(0);
+      setTitle('');
+      setComment('');
+      setRatings({
+        cleanliness: 0,
+        location: 0,
+        value: 0,
+        communication: 0,
+        amenities: 0,
+        foodQuality: 0,
+        service: 0
+      });
+    }
+  }, [isOpen, booking?._id, messSubscription?._id]);
 
   const ratingCategories = booking ? [
     { key: 'cleanliness', label: 'Cleanliness' },
@@ -208,7 +227,11 @@ const ReviewModal = ({ isOpen, onClose, booking, messSubscription, onReviewSubmi
               <textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                placeholder="Share your experience with this property. What did you like or dislike?"
+                placeholder={
+                  booking
+                    ? "Share your experience with this property. What did you like or dislike about the location, amenities, and overall stay?"
+                    : "Share your experience with this mess service. How was the food quality, service, and overall experience?"
+                }
                 maxLength={1000}
                 rows={5}
                 className="review-textarea"

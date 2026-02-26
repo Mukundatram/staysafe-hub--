@@ -1,9 +1,7 @@
 import axios from 'axios';
 
-// In development, point directly to backend to avoid CRA proxy edge-cases.
-const devBase = 'http://localhost:4000/api';
 const api = axios.create({
-  baseURL: (process.env.NODE_ENV === 'development' ? devBase : '/api'),
+  baseURL: '/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -33,6 +31,13 @@ api.interceptors.response.use(
       localStorage.removeItem('staysafe-token');
       window.location.href = '/login';
     }
+    console.error('API Error:', {
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message
+    });
     return Promise.reject(error);
   }
 );

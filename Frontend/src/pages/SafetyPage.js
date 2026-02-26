@@ -15,6 +15,7 @@ import {
   HiOutlineDocumentText,
   HiOutlineBell
 } from 'react-icons/hi';
+import useDocumentTitle from '../hooks/useDocumentTitle';
 
 const safetyFeatures = [
   {
@@ -84,6 +85,7 @@ const verificationProcess = [
 ];
 
 const SafetyPage = () => {
+  useDocumentTitle('Safety');
   return (
     <div className="safety-page">
       <div className="container">
@@ -100,7 +102,7 @@ const SafetyPage = () => {
             </Badge>
             <h1>Your Safety is Our Priority</h1>
             <p>
-              We've built multiple layers of verification and safety features to ensure 
+              We've built multiple layers of verification and safety features to ensure
               every student and intern has a secure, trustworthy living experience.
             </p>
           </div>
@@ -201,21 +203,21 @@ const SafetyPage = () => {
               <div className="emergency-text">
                 <h3>In Case of Emergency</h3>
                 <p>
-                  If you're in immediate danger, use our SOS feature in the app or call our 
+                  If you're in immediate danger, use our SOS feature in the app or call our
                   24/7 helpline. We'll connect you to local authorities within seconds.
                 </p>
               </div>
             </div>
             <div className="emergency-actions">
-              <Button 
-                variant="danger" 
+              <Button
+                variant="danger"
                 size="lg"
                 leftIcon={<HiOutlinePhone size={20} />}
               >
                 Emergency Helpline: 1800-XXX-XXXX
               </Button>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="lg"
                 leftIcon={<HiOutlineBell size={20} />}
               >

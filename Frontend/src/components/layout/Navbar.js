@@ -5,8 +5,8 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useWishlist } from '../../context/WishlistContext';
 import { NotificationBell } from '../notification';
-import { 
-  HiOutlineHome, 
+import {
+  HiOutlineHome,
   HiOutlineShieldCheck,
   HiOutlineUserGroup,
   HiOutlinePhone,
@@ -96,7 +96,7 @@ const Navbar = () => {
           {/* Right Actions */}
           <div className="nav-actions">
             {/* Theme Toggle */}
-            <button 
+            <button
               className="theme-toggle"
               onClick={toggleTheme}
               aria-label="Toggle theme"
@@ -119,7 +119,7 @@ const Navbar = () => {
 
             {isAuthenticated ? (
               <div className="user-menu-wrapper">
-                <button 
+                <button
                   className="user-menu-trigger"
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                 >
@@ -143,6 +143,10 @@ const Navbar = () => {
                       <Link to={getDashboardLink()} className="dropdown-item">
                         <HiOutlineCog size={18} />
                         Dashboard
+                      </Link>
+                      <Link to="/profile" className="dropdown-item">
+                        <HiOutlineUserGroup size={18} />
+                        My Profile
                       </Link>
                       {user?.role !== 'admin' && (
                         <>
@@ -176,7 +180,7 @@ const Navbar = () => {
             )}
 
             {/* Mobile Menu Toggle */}
-            <button 
+            <button
               className="mobile-menu-toggle mobile-only"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               aria-label="Toggle menu"
@@ -207,7 +211,7 @@ const Navbar = () => {
                   {link.name}
                 </Link>
               ))}
-              
+
               {!isAuthenticated && (
                 <div className="mobile-auth-buttons">
                   <Link to="/login" className="btn btn-secondary">
