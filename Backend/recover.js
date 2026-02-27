@@ -1,8 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const mongoose = require('mongoose'); // just for syntax check
-const Booking = require('../models/Booking');
-const User = require('../models/User');
 
 const controllerFile = path.join(__dirname, 'src', 'controllers', 'bookingController.js');
 
@@ -534,8 +531,8 @@ exports.getPendingJoinRequests = async (req, res) => {
 
 let controllerCode = fs.readFileSync(controllerFile, 'utf8');
 if (!controllerCode.includes('exports.bookWithRoommate')) {
-    fs.appendFileSync(controllerFile, missingFunctions);
-    console.log('Appended recovered roommate functions!');
+  fs.appendFileSync(controllerFile, missingFunctions);
+  console.log('Appended recovered roommate functions!');
 } else {
-    console.log('Already appended!');
+  console.log('Already appended!');
 }
