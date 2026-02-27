@@ -503,7 +503,7 @@ const StudentDashboard = () => {
                     })}
                   </div>
                 </Card>
-                
+
               </motion.div>
             )}
 
@@ -827,7 +827,7 @@ const StudentDashboard = () => {
                     <div className="stay-property">
                       <img
                         src={activeBooking.property?.images?.[0]
-                          ? `http://localhost:4000${activeBooking.property.images[0]}`
+                          ? `${process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000'}${activeBooking.property.images[0]}`
                           : "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=150&h=100&fit=crop"}
                         alt={activeBooking.property?.title}
                       />
