@@ -55,7 +55,7 @@ const ChatModal = ({ isOpen, onClose, property, ownerId, ownerName, type: chatTy
       const interval = setInterval(fetchMessages, 5000); // Poll every 5 seconds
       return () => clearInterval(interval);
     }
-  }, [isOpen, property, ownerId, fetchMessages]);
+  }, [isOpen, property, ownerId, fetchMessages, chatType]);
 
   useEffect(() => {
     scrollToBottom();

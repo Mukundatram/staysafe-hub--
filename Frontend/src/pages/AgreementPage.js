@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { 
-  FiFileText, 
-  FiCheck, 
-  FiClock, 
+import {
+  FiFileText,
+  FiCheck,
+  FiClock,
   FiAlertCircle,
   FiHome,
   FiCalendar,
@@ -86,7 +86,7 @@ const AgreementPage = () => {
   const isStudent = user?.id === agreement?.student?._id;
   const isOwner = user?.id === agreement?.owner?._id;
   const canSign = (isStudent && agreement?.status === 'pending_student' && !agreement?.studentSignature?.signed) ||
-                  (isOwner && agreement?.status === 'pending_owner' && !agreement?.ownerSignature?.signed);
+    (isOwner && agreement?.status === 'pending_owner' && !agreement?.ownerSignature?.signed);
 
   if (loading) {
     return (
@@ -136,7 +136,7 @@ const AgreementPage = () => {
             <div className="flex items-start gap-4">
               {agreement.property?.images?.[0] && (
                 <img
-                  src={`http://localhost:4000/${agreement.property.images[0]}`}
+                  src={`${process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000'}${agreement.property.images[0]}`}
                   alt={agreement.property.title}
                   className="w-24 h-24 object-cover rounded-lg"
                 />
@@ -300,7 +300,7 @@ const AgreementPage = () => {
               </h3>
               <div className="flex flex-wrap gap-2">
                 {agreement.includedServices.map((service, index) => (
-                  <span 
+                  <span
                     key={index}
                     className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-sm"
                   >
@@ -360,7 +360,7 @@ const AgreementPage = () => {
                 Confirm Digital Signature
               </h3>
               <p className="text-gray-600 dark:text-gray-400 mb-6">
-                By clicking "Sign Agreement", you agree to all the terms and conditions 
+                By clicking "Sign Agreement", you agree to all the terms and conditions
                 mentioned in this agreement. This action cannot be undone.
               </p>
               <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg mb-6">
@@ -373,14 +373,14 @@ const AgreementPage = () => {
                 </div>
               </div>
               <div className="flex justify-end gap-3">
-                <Button 
-                  variant="secondary" 
+                <Button
+                  variant="secondary"
                   onClick={() => setShowSignConfirm(false)}
                   disabled={signing}
                 >
                   Cancel
                 </Button>
-                <Button 
+                <Button
                   onClick={handleSign}
                   disabled={signing}
                 >
@@ -408,11 +408,10 @@ const AgreementPage = () => {
 // Signature Card Component
 const SignatureCard = ({ title, signed, signedAt, name }) => {
   return (
-    <div className={`p-4 rounded-lg border-2 ${
-      signed 
+    <div className={`p-4 rounded-lg border-2 ${signed
         ? 'border-green-200 bg-green-50 dark:bg-green-900/20 dark:border-green-800'
         : 'border-gray-200 bg-gray-50 dark:bg-gray-700/50 dark:border-gray-600'
-    }`}>
+      }`}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
           {title}

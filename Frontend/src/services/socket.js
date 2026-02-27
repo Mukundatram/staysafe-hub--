@@ -11,7 +11,8 @@ export function connectSocket() {
     return null;
   }
 
-  socket = ioClient('/', {
+  const backendUrl = process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : '/';
+  socket = ioClient(backendUrl, {
     auth: { token },
     path: '/socket.io'
   });

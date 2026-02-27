@@ -145,21 +145,7 @@ const AdminDashboard = () => {
   const [pendingTotal, setPendingTotal] = useState(0);
   const [verifsQuery, setVerifsQuery] = useState('');
 
-  // Refetch verifications when page or query changes (debounced for query)
-  useEffect(() => {
-    let timer = null;
-    // If query changed, debounce; if page changed, fetch immediately
-    if (verifsQuery) {
-      timer = setTimeout(() => fetchPendingVerifications(verifsPage, verifsPageSize, verifsQuery), 350);
-    } else {
-      // no query, fetch immediately for page
-      fetchPendingVerifications(verifsPage, verifsPageSize, verifsQuery);
-    }
-    return () => { if (timer) clearTimeout(timer); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [verifsPage, verifsQuery]);
-
-  const fetchPendingVerifications = async (page = verifsPage, limit = verifsPageSize, q = verifsQuery) => {
+  const fetchPendingVerifications = useCallback(async (page = verifsPage, limit = verifsPageSize, q = verifsQuery) => {
     try {
       setVerifsLoading(true);
       const res = await verificationService.getPendingForAdmin(page, limit, q);
@@ -171,7 +157,20 @@ const AdminDashboard = () => {
     } finally {
       setVerifsLoading(false);
     }
-  };
+  }, [verifsPage, verifsPageSize, verifsQuery]);
+
+  // Refetch verifications when page or query changes (debounced for query)
+  useEffect(() => {
+    let timer = null;
+    // If query changed, debounce; if page changed, fetch immediately
+    if (verifsQuery) {
+      timer = setTimeout(() => fetchPendingVerifications(verifsPage, verifsPageSize, verifsQuery), 350);
+    } else {
+      // no query, fetch immediately for page
+      fetchPendingVerifications(verifsPage, verifsPageSize, verifsQuery);
+    }
+    return () => { if (timer) clearTimeout(timer); };
+  }, [verifsPage, verifsQuery, verifsPageSize, fetchPendingVerifications]);
 
   const handleRefreshVerifications = async () => {
     toast.promise(fetchPendingVerifications(), {

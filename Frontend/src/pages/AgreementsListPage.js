@@ -272,7 +272,7 @@ const AgreementsListPage = () => {
                         }}>
                           {agreement.property?.images?.[0] ? (
                             <img
-                              src={`${process.env.REACT_APP_API_URL || 'http://localhost:4000'}${agreement.property.images[0]}`}
+                              src={`${process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000'}${agreement.property.images[0]}`}
                               alt="Property"
                               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                             />

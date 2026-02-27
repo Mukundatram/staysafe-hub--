@@ -1622,6 +1622,13 @@ const OwnerDashboard = () => {
                       {messSubscribers.map((sub) => (
                         <div key={sub._id} className="subscriber-item">
                           <div className="subscriber-info">
+                            <div className="subscriber-avatar">
+                              {sub.user?.avatar ? (
+                                <img src={`${process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000'}${sub.user.avatar}`} alt={sub.user.name} />
+                              ) : (
+                                <span>{sub.user?.name?.charAt(0) || 'U'}</span>
+                              )}
+                            </div>
                             <span className="subscriber-name">{sub.user?.name || 'Unknown'}</span>
                             <span className="subscriber-email">{sub.user?.email && (<>
                               | <a href={`mailto:${sub.user.email}`}>{sub.user.email}</a>
@@ -1663,7 +1670,7 @@ const OwnerDashboard = () => {
                         </div>
                       ))}
                     </div>
-                    
+
                   </Card>
                 )}
               </motion.div>
@@ -1703,7 +1710,7 @@ const OwnerDashboard = () => {
                             <div className="property-image">
                               {property.images && property.images.length > 0 ? (
                                 <img
-                                  src={`http://localhost:4000${property.images[0]}`}
+                                  src={`${process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000'}${property.images[0]}`}
                                   alt={property.title}
                                 />
                               ) : (

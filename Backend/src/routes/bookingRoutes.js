@@ -19,4 +19,15 @@ router.get('/my', authenticate, authorize(['student']), bookingController.studen
 router.patch('/leave/:booking_id', authenticate, authorize(['student']), bookingController.studentLeaveRoom);
 router.patch('/cancel/:booking_id', authenticate, authorize(['student']), bookingController.studentCancelBooking);
 
+// ==================== ROOMMATE JOINT BOOKING ROUTES ====================
+router.post('/book-with-roommate/:property_id', authenticate, authorize(['student']), bookingController.bookWithRoommate);
+router.patch('/confirm-roommate/:booking_id', authenticate, authorize(['student']), bookingController.confirmRoommate);
+router.get('/pending-roommate-invites', authenticate, authorize(['student']), bookingController.getPendingRoommateInvites);
+
+// ==================== ROOM SHARE DISCOVERY ROUTES ====================
+router.get('/room-shares', authenticate, authorize(['student']), bookingController.getRoomShares);
+router.post('/request-join/:booking_id', authenticate, authorize(['student']), bookingController.requestJoin);
+router.patch('/respond-join/:booking_id/:request_id', authenticate, authorize(['student']), bookingController.respondJoin);
+router.get('/pending-join-requests', authenticate, authorize(['student']), bookingController.getPendingJoinRequests);
+
 module.exports = router;

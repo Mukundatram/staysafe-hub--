@@ -112,7 +112,7 @@ const RoomSharesPage = () => {
                                     <div className="share-image">
                                         <img
                                             src={share.property.images?.[0]
-                                                ? `http://localhost:4000${share.property.images[0]}`
+                                                ? `${process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000'}${share.property.images[0]}`
                                                 : "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=400&h=250&fit=crop"}
                                             alt={share.property.title}
                                         />

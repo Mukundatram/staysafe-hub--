@@ -10,7 +10,7 @@ import { MapComponent } from '../../components/map';
 import { ChatModal } from '../../components/chat';
 import { ReviewList } from '../../components/review';
 import toast from 'react-hot-toast';
-import { 
+import {
   HiOutlineLocationMarker,
   HiOutlineCurrencyRupee,
   HiOutlineShieldCheck,
@@ -114,7 +114,7 @@ const PropertyDetailsPage = () => {
 
   // Use actual property images if available, otherwise use fallback
   const images = property?.images && property.images.length > 0
-    ? property.images.map(img => `http://localhost:4000${img}`)
+    ? property.images.map(img => `${process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000'}${img}`)
     : fallbackImages;
 
   // Amenity icons mapping
@@ -232,7 +232,7 @@ const PropertyDetailsPage = () => {
                   </div>
                 </div>
                 <div className="action-buttons">
-                  <button 
+                  <button
                     className={`action-btn ${isSaved ? 'saved' : ''}`}
                     onClick={handleSave}
                   >
@@ -378,7 +378,7 @@ const PropertyDetailsPage = () => {
 
               {/* Reviews Section */}
               <div className="section">
-                <ReviewList 
+                <ReviewList
                   propertyId={property._id}
                   averageRating={property.averageRating}
                   reviewCount={property.reviewCount}
