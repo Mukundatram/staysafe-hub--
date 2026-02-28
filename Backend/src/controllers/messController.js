@@ -326,12 +326,12 @@ exports.createMessService = async (req, res) => {
       address,
       contactPhone,
       contactEmail,
-      mealTypes: mealTypes ? JSON.parse(mealTypes) : [],
-      cuisineType: cuisineType ? JSON.parse(cuisineType) : [],
-      menu: menu ? JSON.parse(menu) : {},
-      pricing: pricing ? JSON.parse(pricing) : {},
-      timings: timings ? JSON.parse(timings) : {},
-      features: features ? JSON.parse(features) : [],
+      mealTypes: mealTypes ? (typeof mealTypes === 'string' ? JSON.parse(mealTypes) : mealTypes) : [],
+      cuisineType: cuisineType ? (typeof cuisineType === 'string' ? JSON.parse(cuisineType) : cuisineType) : [],
+      menu: menu ? (typeof menu === 'string' ? JSON.parse(menu) : menu) : {},
+      pricing: pricing ? (typeof pricing === 'string' ? JSON.parse(pricing) : pricing) : {},
+      timings: timings ? (typeof timings === 'string' ? JSON.parse(timings) : timings) : {},
+      features: features ? (typeof features === 'string' ? JSON.parse(features) : features) : [],
       images,
       maxSubscribers: maxSubscribers || 100,
       owner: req.user._id
@@ -345,7 +345,7 @@ exports.createMessService = async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating mess service:', error);
-    res.status(500).json({ error: 'Failed to create mess service' });
+    res.status(500).json({ error: 'Failed to create mess service: ' + error.message });
   }
 }
 

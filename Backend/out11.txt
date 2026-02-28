@@ -1,0 +1,27 @@
+
+[34m========== Starting E2E Tests ==========[0m
+
+[34m========== 1. Auth Flow - Login ==========[0m
+[32m✅ Logged in as test_student[0m
+[32m✅ Logged in as test_owner[0m
+
+[34m========== 2. Property Management (Owner) ==========[0m
+[32m✅ Property created successfully: 69a2740ca2a1844cd3aea3f1[0m
+[32m✅ Room added successfully check: Yes[0m
+
+[34m========== 3. Mess Service Management (Owner) ==========[0m
+[32m✅ Mess Service created successfully: 69a2740da2a1844cd3aea3fa[0m
+
+[34m========== 4. Booking (Student) ==========[0m
+[32m✅ Booking request submitted: 69a2740da2a1844cd3aea404[0m
+
+[34m========== 5. Booking Approval (Owner) ==========[0m
+[32m✅ Booking approved successfully[0m
+
+[34m========== 6. Mess Subscription (Student) ==========[0m
+[32m✅ Mess subscription request submitted: 69a2740fa2a1844cd3aea419[0m
+
+[34m========== 7. Mess Subscription Approval (Owner) ==========[0m
+[32m✅ Mess subscription approved successfully[0m
+
+[34m========== Tests Finished ==========[0m

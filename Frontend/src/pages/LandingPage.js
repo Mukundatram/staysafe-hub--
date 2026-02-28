@@ -39,8 +39,9 @@ const LandingPage = () => {
   useEffect(() => {
     const fetchProperties = async () => {
       try {
-        const properties = await propertyService.getAll();
-        setFeaturedProperties(properties.slice(0, 3));
+        const data = await propertyService.getAll();
+        const propertiesArray = Array.isArray(data) ? data : (data.properties || []);
+        setFeaturedProperties(propertiesArray.slice(0, 3));
       } catch (error) {
         console.error('Failed to fetch properties:', error);
       } finally {
@@ -406,7 +407,7 @@ const LandingPage = () => {
         </div>
       </section>
 
-      
+
     </div>
   );
 };

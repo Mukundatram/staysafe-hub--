@@ -1,0 +1,33 @@
+
+[34m========== Starting E2E Tests ==========[0m
+
+[34m========== 1. Auth Flow - Login ==========[0m
+[32m✅ Logged in as test_student[0m
+[32m✅ Logged in as test_owner[0m
+
+[34m========== 2. Property Management (Owner) ==========[0m
+[32m✅ Property created successfully: 69a278ce620c51f9472c9bc7[0m
+[32m✅ Room added successfully check: Yes[0m
+
+[34m========== 3. Mess Service Management (Owner) ==========[0m
+[32m✅ Mess Service created successfully: 69a278ce620c51f9472c9bd0[0m
+
+[34m========== 4. Booking (Student) ==========[0m
+[32m✅ Booking request submitted: 69a278cf620c51f9472c9bda[0m
+
+[34m========== 5. Booking Approval (Owner) ==========[0m
+[32m✅ Booking approved successfully[0m
+
+[34m========== 6. Mess Subscription (Student) ==========[0m
+[32m✅ Mess subscription request submitted: 69a278d2620c51f9472c9bf8[0m
+
+[34m========== 7. Mess Subscription Approval (Owner) ==========[0m
+[32m✅ Mess subscription approved successfully[0m
+
+[34m========== 8. Chat & Communication ==========[0m
+[32m✅ Property Chat: Student sent message to Owner[0m
+[32m✅ Property Chat: Owner replied to Student[0m
+[32m✅ Property Chat: Student has 2 unread messages[0m
+[32m✅ Mess Chat: Student sent mess-related message to Owner[0m
+
+[34m========== Tests Finished ==========[0m

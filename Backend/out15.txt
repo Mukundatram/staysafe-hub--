@@ -1,0 +1,5 @@
+
+[34m========== Starting E2E Tests ==========[0m
+
+[34m========== 1. Auth Flow - Login ==========[0m
+[31m❌ Could not login: Server error[0m

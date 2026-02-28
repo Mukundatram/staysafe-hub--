@@ -1,0 +1,20 @@
+
+[34m========== Starting E2E Tests ==========[0m
+
+[34m========== 1. Auth Flow - Login ==========[0m
+[32m✅ Logged in as test_student[0m
+[32m✅ Logged in as test_owner[0m
+
+[34m========== 2. Property Management (Owner) ==========[0m
+[32m✅ Property created successfully: 69a26f6dee3c497b546a71b1[0m
+[31m❌ Add Room failed: Server error[0m
+
+[34m========== 3. Mess Service Management (Owner) ==========[0m
+[31m❌ Add Mess failed: Request failed with status code 500[0m
+
+[34m========== 4. Booking (Student) ==========[0m
+[31m❌ Booking request failed: Validation failed[0m
+
+[34m========== 5. Booking Approval (Owner) ==========[0m
+
+[34m========== Tests Finished ==========[0m
