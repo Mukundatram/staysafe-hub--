@@ -34,7 +34,7 @@ const PropertyCard = ({ property, showActions = true }) => {
   };
 
   const imageUrl = images && images.length > 0
-    ? `${process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000'}${images[0]}`
+    ? `${process.env.REACT_APP_API_BASE_URL ? process.env.REACT_APP_API_BASE_URL.replace('/api', '') : (process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000')}${images[0]}`
     : `https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=400&h=250&fit=crop&auto=format`;
 
   return (

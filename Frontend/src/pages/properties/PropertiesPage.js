@@ -239,7 +239,7 @@ const PropertiesPage = () => {
         title: p.title,
         description: p.location,
         price: p.rent,
-        image: p.images?.[0] ? `${process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000'}${p.images[0]}` : null,
+        image: p.images?.[0] ? `${process.env.REACT_APP_API_BASE_URL ? process.env.REACT_APP_API_BASE_URL.replace('/api', '') : (process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000')}${p.images[0]}` : null,
       }));
   }, [filteredProperties]);
 
@@ -629,7 +629,7 @@ const PropertiesPage = () => {
                       >
                         <div className="map-property-image">
                           {property.images?.[0] ? (
-                            <img src={`${process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000'}${property.images[0]}`} alt={property.title} />
+                            <img src={`${process.env.REACT_APP_API_BASE_URL ? process.env.REACT_APP_API_BASE_URL.replace('/api', '') : (process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000')}${property.images[0]}`} alt={property.title} />
                           ) : (
                             <HiOutlineHome size={24} />
                           )}
