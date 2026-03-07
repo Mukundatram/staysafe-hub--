@@ -1,0 +1,78 @@
+
+> --stay-safe-hub-backend@1.0.0 dev
+> nodemon src/server.js
+
+[33m[nodemon] 3.1.11[39m
+[33m[nodemon] to restart at any time, enter `rs`[39m
+[33m[nodemon] watching path(s): *.*[39m
+[33m[nodemon] watching extensions: js,mjs,cjs,json[39m
+[32m[nodemon] starting `node src/server.js`[39m
+MongoDB connected
+Server running on port 4000
+[2026-03-07T08:46:16.345Z] POST /api/auth/login
+[2026-03-07T08:46:16.669Z] POST /api/auth/login
+[2026-03-07T08:46:16.937Z] POST /api/owner/add-property
+[2026-03-07T08:46:20.693Z] POST /api/mess
+[2026-03-07T08:46:20.840Z] GET /api/properties?location=Test%20City
+[2026-03-07T08:46:21.107Z] GET /api/mess?features=Pure%20Veg&cuisineType=North%20Indian
+[2026-03-07T08:46:21.243Z] GET /api/mess/69abe5dc9afbbba5afe1f198
+[2026-03-07T08:46:21.408Z] GET /api/mess/subscriptions/my
+GET /subscriptions/my hit. User: new ObjectId('69abe50061bd3972ba502325')
+Found subscriptions: 0
+[2026-03-07T08:46:21.482Z] POST /api/mess/69abe5dc9afbbba5afe1f198/subscribe
+[2026-03-07T08:46:21.692Z] PATCH /api/mess/subscriptions/69abe5dd9afbbba5afe1f1ab/approve
+Email sent successfully to test_student@example.com
+[2026-03-07T08:46:25.631Z] POST /api/chat/mess/send
+[2026-03-07T08:46:26.076Z] PUT /api/mess/69abe5dc9afbbba5afe1f198
+[2026-03-07T08:46:26.230Z] DELETE /api/mess/69abe5dc9afbbba5afe1f198
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `node src/server.js`[39m
+MongoDB connected
+Server running on port 4000
+[2026-03-07T08:47:00.631Z] POST /api/auth/login
+[2026-03-07T08:47:00.991Z] POST /api/auth/login
+[2026-03-07T08:47:01.268Z] POST /api/owner/add-property
+[2026-03-07T08:47:05.952Z] POST /api/owner/property/69abe60947d03864c150ff97/rooms
+[ownerRoutes] POST /property/:id/rooms called {
+  user: new ObjectId('69abe50061bd3972ba502326'),
+  params: { id: '69abe60947d03864c150ff97' },
+  bodyKeys: [
+    'roomName',
+    'roomNumber',
+    'roomType',
+    'maxOccupancy',
+    'totalRooms',
+    'availableRooms',
+    'pricePerBed',
+    'pricePerRoom',
+    'genderPreference'
+  ]
+}
+[2026-03-07T08:47:06.162Z] POST /api/mess
+[2026-03-07T08:47:06.379Z] GET /api/properties?location=Test%20City
+[2026-03-07T08:47:06.595Z] GET /api/mess?features=Pure%20Veg&cuisineType=North%20Indian
+[2026-03-07T08:47:06.865Z] GET /api/properties/69abe60947d03864c150ff97
+[2026-03-07T08:47:07.319Z] GET /api/mess/69abe60a47d03864c150ffa0
+[2026-03-07T08:47:07.561Z] GET /api/properties/69abe60947d03864c150ff97
+[2026-03-07T08:47:07.655Z] POST /api/bookings/book/69abe60947d03864c150ff97
+[2026-03-07T08:47:08.263Z] PATCH /api/bookings/owner/69abe60b47d03864c150ffb8
+[OwnerBookingUpdate] incoming owner: 69abe50061bd3972ba502326 bookingId: 69abe60b47d03864c150ffb8 body: { status: 'Confirmed' }
+[OwnerBookingUpdate] updated booking: 69abe60b47d03864c150ffb8 newStatus: Confirmed
+[2026-03-07T08:47:08.732Z] GET /api/mess/subscriptions/my
+GET /subscriptions/my hit. User: new ObjectId('69abe50061bd3972ba502325')
+Found subscriptions: 1
+[2026-03-07T08:47:08.982Z] PATCH /api/mess/subscriptions/69abe5dd9afbbba5afe1f1ab/cancel
+[2026-03-07T08:47:09.384Z] POST /api/mess/69abe60a47d03864c150ffa0/subscribe
+[2026-03-07T08:47:09.871Z] PATCH /api/mess/subscriptions/69abe60d47d03864c150ffd6/approve
+Email sent successfully to test_owner@example.com
+Email sent successfully to test_student@example.com
+Email sent successfully to test_student@example.com
+[2026-03-07T08:47:13.038Z] POST /api/chat/send
+[2026-03-07T08:47:13.401Z] POST /api/chat/send
+[2026-03-07T08:47:13.696Z] GET /api/chat/unread-count
+[2026-03-07T08:47:13.769Z] POST /api/chat/mess/send
+[2026-03-07T08:47:14.074Z] PUT /api/owner/property/69abe60947d03864c150ff97
+[2026-03-07T08:47:14.243Z] PUT /api/mess/69abe60a47d03864c150ffa0
+[2026-03-07T08:47:14.470Z] PATCH /api/bookings/cancel/69abe60b47d03864c150ffb8
+[2026-03-07T08:47:14.543Z] DELETE /api/mess/69abe60a47d03864c150ffa0
+[2026-03-07T08:47:14.743Z] DELETE /api/owner/property/69abe60947d03864c150ff97

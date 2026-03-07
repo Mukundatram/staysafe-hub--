@@ -13,20 +13,16 @@ router.post('/add-property', authenticate, authorize(['owner']), handlePropertyI
   try {
     // Validate minimum 3 images
     if (!req.files || req.files.length < 3) {
-      // Clean up any uploaded files
-      if (req.files) {
-        req.files.forEach(file => fs.unlinkSync(file.path));
-      }
       return res.status(400).json({ message: 'Please upload at least 3 images' });
     }
 
-    // Get image paths (relative URLs)
-    const imagePaths = req.files.map(file => `/uploads/properties/${file.filename}`);
+    // Get image paths (secure Cloudinary URLs)
+    const imagePaths = req.files.map(file => file.path);
 
     // Parse amenities and meals if they come as strings
     let amenities = req.body.amenities;
     let meals = req.body.meals;
-    
+
     if (typeof amenities === 'string') {
       amenities = amenities.split(',').map(a => a.trim()).filter(Boolean);
     }
@@ -44,19 +40,19 @@ router.post('/add-property', authenticate, authorize(['owner']), handlePropertyI
       }
     }
 
-      const property = new Property({
-        owner: req.user._id,
-        title: req.body.title,
-        description: req.body.description,
-        rent: Number(req.body.rent),
-        location: req.body.location,
-        amenities: amenities || [],
-        meals: meals || [],
-        images: imagePaths,
-        coordinates: coordinates || null,
-        linkedMess: req.body.linkedMess || null,
-      });
-    
+    const property = new Property({
+      owner: req.user._id,
+      title: req.body.title,
+      description: req.body.description,
+      rent: Number(req.body.rent),
+      location: req.body.location,
+      amenities: amenities || [],
+      meals: meals || [],
+      images: imagePaths,
+      coordinates: coordinates || null,
+      linkedMess: req.body.linkedMess || null,
+    });
+
     await property.save();
     // If owner provided initial room inventory fields, create a default Room for convenience
     try {
@@ -83,14 +79,7 @@ router.post('/add-property', authenticate, authorize(['owner']), handlePropertyI
 
     res.status(201).json({ message: 'Property added', property });
   } catch (err) {
-    // Clean up uploaded files on error
-    if (req.files) {
-      req.files.forEach(file => {
-        if (fs.existsSync(file.path)) {
-          fs.unlinkSync(file.path);
-        }
-      });
-    }
+    console.error('Add property error:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
@@ -162,7 +151,7 @@ router.patch('/property/:id/rooms/:roomId', authenticate, authorize(['owner']), 
     const room = await Room.findOne({ _id: req.params.roomId, property: property._id });
     if (!room) return res.status(404).json({ message: 'Room not found' });
     const updates = {};
-    ['roomName','roomNumber','roomType','maxOccupancy','totalRooms','availableRooms','pricePerBed','pricePerRoom','genderPreference'].forEach(k => {
+    ['roomName', 'roomNumber', 'roomType', 'maxOccupancy', 'totalRooms', 'availableRooms', 'pricePerBed', 'pricePerRoom', 'genderPreference'].forEach(k => {
       if (req.body[k] !== undefined) updates[k] = req.body[k];
     });
 
@@ -211,7 +200,7 @@ router.delete('/property/:id/rooms/:roomId', authenticate, authorize(['owner']),
 router.put('/property/:id', authenticate, authorize(['owner']), async (req, res) => {
   try {
     const property = await Property.findOne({ _id: req.params.id, owner: req.user._id });
-    
+
     if (!property) {
       return res.status(404).json({ message: 'Property not found or unauthorized' });
     }
@@ -219,7 +208,7 @@ router.put('/property/:id', authenticate, authorize(['owner']), async (req, res)
     // Update only allowed fields
     const allowedUpdates = ['title', 'description', 'rent', 'location', 'amenities', 'meals', 'images', 'coordinates', 'linkedMess'];
     const updates = {};
-    
+
     allowedUpdates.forEach(field => {
       if (req.body[field] !== undefined) {
         // Parse coordinates if it's a string
@@ -287,7 +276,7 @@ router.put('/property/:id', authenticate, authorize(['owner']), async (req, res)
 router.delete('/property/:id', authenticate, authorize(['owner']), async (req, res) => {
   try {
     const property = await Property.findOne({ _id: req.params.id, owner: req.user._id });
-    
+
     if (!property) {
       return res.status(404).json({ message: 'Property not found or unauthorized' });
     }

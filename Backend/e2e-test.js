@@ -27,8 +27,9 @@ const logError = (msg) => console.log(`${colors.red}❌ ${msg}${colors.reset}`);
 function createDummyImage() {
     const dummyPath = path.join(__dirname, 'dummy-image.jpg');
     if (!fs.existsSync(dummyPath)) {
-        // Just write some dummy text data as a file
-        fs.writeFileSync(dummyPath, 'fake image content');
+        // Write a valid 1x1 pixel JPEG file instead of raw text so Cloudinary recognizes it
+        const base64Image = "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=";
+        fs.writeFileSync(dummyPath, Buffer.from(base64Image, 'base64'));
     }
     return dummyPath;
 }

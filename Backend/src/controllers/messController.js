@@ -316,7 +316,8 @@ exports.createMessService = async (req, res) => {
     } = req.body;
 
     // Process uploaded images
-    const images = req.files ? req.files.map(file => `/uploads/properties/${file.filename}`) : [];
+    // With Cloudinary storage, file.path contains the secure URL directly
+    const images = req.files ? req.files.map(file => file.path) : [];
 
     const mess = new Mess({
       name,

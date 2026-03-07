@@ -1,0 +1,42 @@
+
+[34m========== Starting E2E Tests ==========[0m
+
+[34m========== 1. Auth Flow - Login ==========[0m
+[32m✅ Logged in as test_student[0m
+[32m✅ Logged in as test_owner[0m
+
+[34m========== 2. Property Management (Owner) ==========[0m
+[31m❌ Add Property failed: An unknown file format not allowed[0m
+
+[34m========== 3. Mess Service Management (Owner) ==========[0m
+[32m✅ Mess Service created successfully: 69abe5dc9afbbba5afe1f198[0m
+
+[34m========== 3.5 Search & Discovery (Student/Public) ==========[0m
+[32m✅ Property Search: Found 12 properties in Test City[0m
+[32m✅ Mess Search: Found 6 Pure Veg/North Indian messes[0m
+[32m✅ Mess Details: Successfully fetched individual mess[0m
+
+[34m========== 4. Booking (Student) ==========[0m
+
+[34m========== 5. Booking Approval (Owner) ==========[0m
+
+[34m========== 6. Mess Subscription (Student) ==========[0m
+[32m✅ Mess subscription request submitted: 69abe5dd9afbbba5afe1f1ab[0m
+
+[34m========== 7. Mess Subscription Approval (Owner) ==========[0m
+[32m✅ Mess subscription approved successfully[0m
+
+[34m========== 8. Chat & Communication ==========[0m
+[32m✅ Mess Chat: Student sent mess-related message to Owner[0m
+
+[34m========== 8.5 Update Property (Owner) ==========[0m
+
+[34m========== 8.6 Update Mess (Owner) ==========[0m
+[32m✅ Mess Service Updated successfully[0m
+
+[34m========== 9. Booking Cancellation (Student) ==========[0m
+
+[34m========== 10. Cleanup & Deletion (Owner) ==========[0m
+[32m✅ Mess Service Deleted successfully[0m
+
+[34m========== Tests Finished ==========[0m

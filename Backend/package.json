@@ -16,6 +16,7 @@
   "dependencies": {
     "axios": "^1.13.6",
     "bcryptjs": "^2.4.3",
+    "cloudinary": "^1.41.3",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -25,6 +26,7 @@
     "memory-cache": "^0.2.0",
     "mongoose": "^8.4.1",
     "multer": "^2.0.2",
+    "multer-storage-cloudinary": "^4.0.0",
     "nodemailer": "^7.0.12",
     "passport": "^0.6.0",
     "passport-google-oauth20": "^2.0.0",
