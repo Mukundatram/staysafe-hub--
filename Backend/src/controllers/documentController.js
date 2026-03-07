@@ -54,12 +54,10 @@ exports.uploadDocument = async (req, res) => {
         const { documentType, notes, propertyId, expiryDate, collegeName, graduationYear } = req.body;
 
         if (!documentType) {
-            fs.unlinkSync(req.file.path);
             return res.status(400).json({ success: false, message: 'Document type is required' });
         }
 
         if (documentType === 'aadhar') {
-            try { fs.unlinkSync(req.file.path); } catch (e) { }
             return res.status(400).json({
                 success: false,
                 message: 'Aadhaar document uploads are not allowed. Use Aadhaar OTP verification instead.'
@@ -131,7 +129,7 @@ exports.uploadDocument = async (req, res) => {
             documentCategory: getDocumentCategory(documentType),
             fileName: req.file.filename,
             originalName: req.file.originalname,
-            filePath: `/uploads/documents/${req.file.filename}`,
+            filePath: req.file.path,
             fileSize: req.file.size,
             mimeType: req.file.mimetype,
             notes,
@@ -170,9 +168,6 @@ exports.uploadDocument = async (req, res) => {
         });
     } catch (error) {
         console.error('Error uploading document:', error);
-        if (req.file && fs.existsSync(req.file.path)) {
-            fs.unlinkSync(req.file.path);
-        }
         res.status(500).json({ success: false, message: 'Failed to upload document' });
     }
 };
@@ -309,10 +304,8 @@ exports.downloadDocument = async (req, res) => {
             return res.status(403).json({ success: false, message: 'Access denied' });
         }
 
-        const absolutePath = path.join(__dirname, '../../', document.filePath);
-        if (!fs.existsSync(absolutePath)) return res.status(404).json({ success: false, message: 'File not found' });
-
-        return res.sendFile(absolutePath);
+        // Cloudinary URLs can be redirected directly since Cloudinary acts as the host/CDN
+        return res.redirect(document.filePath);
     } catch (error) {
         console.error('Error downloading document:', error);
         res.status(500).json({ success: false, message: 'Failed to download document' });
@@ -338,10 +331,8 @@ exports.deleteDocument = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Cannot delete verified documents' });
         }
 
-        const filePath = path.join(__dirname, '../../', document.filePath);
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-        }
+        // Cloudinary handles its own deletion lifecycle. Or we can call Cloudinary API to destroy the asset later.
+        // For now, we simply remove the document reference from the database.
 
         await Document.findByIdAndDelete(req.params.id);
 

@@ -1,4 +1,5 @@
 const Tesseract = require('tesseract.js');
+const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 
@@ -10,22 +11,32 @@ const path = require('path');
  */
 async function extractTextFromImage(filePath) {
     try {
-        // Ensure path is absolute
-        const absolutePath = path.isAbsolute(filePath)
-            ? filePath
-            : path.join(__dirname, '../../', filePath);
+        let targetBuffer = filePath;
 
-        if (!fs.existsSync(absolutePath)) {
-            console.error('OCR Error: File not found at path:', absolutePath);
-            return '';
+        // If it's a Cloudinary URL, fetch the image array buffer first
+        if (filePath.startsWith('http')) {
+            console.log(`Fetching remote image for OCR: ${filePath}`);
+            const response = await axios.get(filePath, { responseType: 'arraybuffer' });
+            targetBuffer = Buffer.from(response.data, 'binary');
+        } else {
+            // Fallback for local testing if path is still relative
+            const absolutePath = path.isAbsolute(filePath)
+                ? filePath
+                : path.join(__dirname, '../../', filePath);
+
+            if (!fs.existsSync(absolutePath)) {
+                console.error('OCR Error: File not found locally:', absolutePath);
+                return '';
+            }
+            targetBuffer = absolutePath;
         }
 
-        console.log(`Starting OCR on file: ${absolutePath}`);
+        console.log(`Starting OCR Analysis...`);
 
         // Use Tesseract to recognize text
         // we use English by default. For student IDs, this is usually sufficient.
         const { data: { text } } = await Tesseract.recognize(
-            absolutePath,
+            targetBuffer,
             'eng',
             { logger: m => console.log(`OCR Progress: ${m.status} - ${(m.progress * 100).toFixed(2)}%`) }
         );

@@ -76,3 +76,17 @@ Email sent successfully to test_student@example.com
 [2026-03-07T08:47:14.470Z] PATCH /api/bookings/cancel/69abe60b47d03864c150ffb8
 [2026-03-07T08:47:14.543Z] DELETE /api/mess/69abe60a47d03864c150ffa0
 [2026-03-07T08:47:14.743Z] DELETE /api/owner/property/69abe60947d03864c150ff97
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `node src/server.js`[39m
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `node src/server.js`[39m
+MongoDB connected
+Server running on port 4000
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `node src/server.js`[39m
+MongoDB connected
+Server running on port 4000
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `node src/server.js`[39m
+MongoDB connected
+Server running on port 4000
