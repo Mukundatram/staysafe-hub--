@@ -114,7 +114,7 @@ const PropertyDetailsPage = () => {
 
   // Use actual property images if available, otherwise use fallback
   const images = property?.images && property.images.length > 0
-    ? property.images.map(img => `${process.env.REACT_APP_API_BASE_URL ? process.env.REACT_APP_API_BASE_URL.replace('/api', '') : (process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000')}${img}`)
+    ? property.images.map(img => `${img?.startsWith('http') ? '' : (process.env.REACT_APP_API_BASE_URL ? process.env.REACT_APP_API_BASE_URL.replace('/api', '') : (process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000'))}${img}`)
     : fallbackImages;
 
   // Amenity icons mapping

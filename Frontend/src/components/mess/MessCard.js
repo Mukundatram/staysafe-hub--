@@ -44,7 +44,7 @@ const MessCard = ({ mess, onSubscribe }) => {
       if (images[0].startsWith('http')) {
         return images[0];
       }
-      return `${process.env.REACT_APP_API_BASE_URL ? process.env.REACT_APP_API_BASE_URL.replace('/api', '') : (process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000')}${images[0]}`;
+      return `${images[0]?.startsWith('http') ? '' : (process.env.REACT_APP_API_BASE_URL ? process.env.REACT_APP_API_BASE_URL.replace('/api', '') : (process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000'))}${images[0]}`;
     }
     // Use a random demo image based on the mess id for consistency
     const randomIndex = _id ? _id.charCodeAt(_id.length - 1) % demoMessImages.length : 0;

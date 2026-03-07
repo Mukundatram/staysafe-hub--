@@ -136,7 +136,7 @@ const AgreementPage = () => {
             <div className="flex items-start gap-4">
               {agreement.property?.images?.[0] && (
                 <img
-                  src={`${process.env.REACT_APP_API_BASE_URL ? process.env.REACT_APP_API_BASE_URL.replace('/api', '') : (process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000')}${agreement.property.images[0]}`}
+                  src={`${agreement.property.images[0]?.startsWith('http') ? '' : (process.env.REACT_APP_API_BASE_URL ? process.env.REACT_APP_API_BASE_URL.replace('/api', '') : (process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000'))}${agreement.property.images[0]}`}
                   alt={agreement.property.title}
                   className="w-24 h-24 object-cover rounded-lg"
                 />

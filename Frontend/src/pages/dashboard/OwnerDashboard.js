@@ -1624,7 +1624,7 @@ const OwnerDashboard = () => {
                           <div className="subscriber-info">
                             <div className="subscriber-avatar">
                               {sub.user?.avatar ? (
-                                <img src={`${process.env.REACT_APP_API_BASE_URL ? process.env.REACT_APP_API_BASE_URL.replace('/api', '') : (process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000')}${sub.user.avatar}`} alt={sub.user.name} />
+                                <img src={`${sub.user.avatar?.startsWith('http') ? '' : (process.env.REACT_APP_API_BASE_URL ? process.env.REACT_APP_API_BASE_URL.replace('/api', '') : (process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000'))}${sub.user.avatar}`} alt={sub.user.name} />
                               ) : (
                                 <span>{sub.user?.name?.charAt(0) || 'U'}</span>
                               )}
@@ -1710,7 +1710,7 @@ const OwnerDashboard = () => {
                             <div className="property-image">
                               {property.images && property.images.length > 0 ? (
                                 <img
-                                  src={`${process.env.REACT_APP_API_BASE_URL ? process.env.REACT_APP_API_BASE_URL.replace('/api', '') : (process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000')}${property.images[0]}`}
+                                  src={`${property.images[0]?.startsWith('http') ? '' : (process.env.REACT_APP_API_BASE_URL ? process.env.REACT_APP_API_BASE_URL.replace('/api', '') : (process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000'))}${property.images[0]}`}
                                   alt={property.title}
                                 />
                               ) : (

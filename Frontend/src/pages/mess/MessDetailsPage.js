@@ -174,7 +174,7 @@ const MessDetailsPage = () => {
   ];
 
   const images = mess?.images && mess.images.length > 0
-    ? mess.images.map(img => img.startsWith('http') ? img : `${process.env.REACT_APP_API_BASE_URL ? process.env.REACT_APP_API_BASE_URL.replace('/api', '') : (process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000')}${img}`)
+    ? mess.images.map(img => img.startsWith('http') ? img : `${img?.startsWith('http') ? '' : (process.env.REACT_APP_API_BASE_URL ? process.env.REACT_APP_API_BASE_URL.replace('/api', '') : (process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000'))}${img}`)
     : fallbackImages;
 
   if (loading) {

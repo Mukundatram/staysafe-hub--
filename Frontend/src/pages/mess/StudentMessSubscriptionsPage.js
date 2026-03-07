@@ -192,7 +192,7 @@ const StudentMessSubscriptionsPage = () => {
                                                     <div className="w-24 h-24 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
                                                         {subscription.mess?.images?.[0] ? (
                                                             <img
-                                                                src={`${process.env.REACT_APP_API_BASE_URL ? process.env.REACT_APP_API_BASE_URL.replace('/api', '') : (process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000')}${subscription.mess.images[0]}`}
+                                                                src={`${subscription.mess.images[0]?.startsWith('http') ? '' : (process.env.REACT_APP_API_BASE_URL ? process.env.REACT_APP_API_BASE_URL.replace('/api', '') : (process.env.REACT_APP_API_URL ? process.env.REACT_APP_API_URL.replace('/api', '') : 'http://localhost:4000'))}${subscription.mess.images[0]}`}
                                                                 alt={subscription.mess.name}
                                                                 className="w-full h-full object-cover"
                                                             />
