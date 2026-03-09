@@ -192,12 +192,16 @@ const ProfilePage = () => {
     }
   ];
 
-  const quickLinks = [
-    { label: 'My Dashboard', icon: HiOutlineHome, to: user.role === 'owner' ? '/owner/dashboard' : user.role === 'admin' ? '/admin/dashboard' : '/dashboard', color: 'var(--accent-primary)' },
-    { label: 'My Wishlist', icon: HiOutlineHeart, to: '/wishlist', color: 'var(--accent-secondary)' },
-    { label: 'Verification', icon: HiOutlineShieldCheck, to: '/verification', color: 'var(--success)' },
-    { label: 'Agreements', icon: HiOutlineDocumentText, to: '/agreements', color: 'var(--warning)' }
-  ];
+  const quickLinks = user.role === 'admin'
+    ? [
+      { label: 'Admin Dashboard', icon: HiOutlineHome, to: '/admin/dashboard', color: 'var(--accent-primary)' }
+    ]
+    : [
+      { label: 'My Dashboard', icon: HiOutlineHome, to: user.role === 'owner' ? '/owner/dashboard' : '/dashboard', color: 'var(--accent-primary)' },
+      { label: 'My Wishlist', icon: HiOutlineHeart, to: '/wishlist', color: 'var(--accent-secondary)' },
+      { label: 'Verification', icon: HiOutlineShieldCheck, to: '/verification', color: 'var(--success)' },
+      { label: 'Agreements', icon: HiOutlineDocumentText, to: '/agreements', color: 'var(--warning)' }
+    ];
 
   return (
     <div className="profile-page">
@@ -230,10 +234,12 @@ const ProfilePage = () => {
                 <span className="role-badge" style={{ background: `${roleBadge.color}20`, color: roleBadge.color }}>
                   {roleBadge.label}
                 </span>
-                <span className="verification-badge" style={{ background: `${verification.color}20`, color: verification.color }}>
-                  <VerificationIcon size={14} />
-                  {verification.label}
-                </span>
+                {user.role !== 'admin' && (
+                  <span className="verification-badge" style={{ background: `${verification.color}20`, color: verification.color }}>
+                    <VerificationIcon size={14} />
+                    {verification.label}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -407,52 +413,85 @@ const ProfilePage = () => {
 
           {/* Right Column */}
           <div className="profile-sidebar">
-            {/* Verification Status Card */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.2 }}
-              className="profile-card"
-            >
-              <div className="card-header">
-                <h2>
-                  <HiOutlineShieldCheck size={20} />
-                  Verification Status
-                </h2>
-              </div>
+            {/* Verification Status Card — hidden for admin */}
+            {user.role !== 'admin' ? (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.2 }}
+                className="profile-card"
+              >
+                <div className="card-header">
+                  <h2>
+                    <HiOutlineShieldCheck size={20} />
+                    Verification Status
+                  </h2>
+                </div>
 
-              <div className="verification-list">
-                {verificationItems.map((item, idx) => {
-                  const Icon = item.icon;
-                  return (
-                    <div key={idx} className={`verification-item ${item.verified ? 'verified' : 'unverified'}`}>
-                      <div className="verification-item-icon" style={{
-                        background: item.verified ? 'var(--success-bg)' : 'var(--bg-tertiary)',
-                        color: item.verified ? 'var(--success)' : 'var(--text-tertiary)'
-                      }}>
-                        <Icon size={18} />
+                <div className="verification-list">
+                  {verificationItems.map((item, idx) => {
+                    const Icon = item.icon;
+                    return (
+                      <div key={idx} className={`verification-item ${item.verified ? 'verified' : 'unverified'}`}>
+                        <div className="verification-item-icon" style={{
+                          background: item.verified ? 'var(--success-bg)' : 'var(--bg-tertiary)',
+                          color: item.verified ? 'var(--success)' : 'var(--text-tertiary)'
+                        }}>
+                          <Icon size={18} />
+                        </div>
+                        <div className="verification-item-text">
+                          <span className="verification-label">{item.label}</span>
+                          <span className={`verification-status ${item.verified ? 'status-verified' : 'status-pending'}`}>
+                            {item.verified ? 'Verified' : 'Pending'}
+                          </span>
+                        </div>
+                        {item.verified ? (
+                          <HiOutlineCheck size={18} className="check-icon" style={{ color: 'var(--success)' }} />
+                        ) : (
+                          <HiOutlineX size={18} className="check-icon" style={{ color: 'var(--text-tertiary)' }} />
+                        )}
                       </div>
-                      <div className="verification-item-text">
-                        <span className="verification-label">{item.label}</span>
-                        <span className={`verification-status ${item.verified ? 'status-verified' : 'status-pending'}`}>
-                          {item.verified ? 'Verified' : 'Pending'}
-                        </span>
-                      </div>
-                      {item.verified ? (
-                        <HiOutlineCheck size={18} className="check-icon" style={{ color: 'var(--success)' }} />
-                      ) : (
-                        <HiOutlineX size={18} className="check-icon" style={{ color: 'var(--text-tertiary)' }} />
-                      )}
+                    );
+                  })}
+                </div>
+
+                <Link to="/verification" className="verification-link">
+                  Complete Verification
+                  <HiOutlineArrowRight size={16} />
+                </Link>
+              </motion.div>
+            ) : (
+              /* Admin Info Card */
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.2 }}
+                className="profile-card"
+              >
+                <div className="card-header">
+                  <h2>
+                    <HiOutlineShieldCheck size={20} />
+                    Platform Admin
+                  </h2>
+                </div>
+                <div style={{ padding: '1.5rem' }}>
+                  <div className="admin-info-item" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '1rem' }}>
+                    <span style={{ fontSize: '1.5rem' }}>🛡️</span>
+                    <div>
+                      <p style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>Full platform access</p>
+                      <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Manage bookings, verify documents, review student verifications and monitor analytics.</p>
                     </div>
-                  );
-                })}
-              </div>
-
-              <Link to="/verification" className="verification-link">
-                Complete Verification
-                <HiOutlineArrowRight size={16} />
-              </Link>
-            </motion.div>
+                  </div>
+                  <div className="admin-info-item" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                    <span style={{ fontSize: '1.5rem' }}>✅</span>
+                    <div>
+                      <p style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>No verification required</p>
+                      <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Admin accounts are trusted by default. Document verification applies only to students and property owners.</p>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
 
             {/* Quick Links Card */}
             <motion.div
