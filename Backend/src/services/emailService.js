@@ -1,12 +1,24 @@
 const nodemailer = require('nodemailer');
 
-// Create transporter - Configure with your email service
-// For production, use environment variables for credentials
+// Sanitise email credentials: strip quotes AND all whitespace.
+// Gmail App Passwords are shown with spaces in Google's UI but must be used without spaces.
+const emailUser = process.env.EMAIL_USER ? process.env.EMAIL_USER.replace(/[\s'"]/g, '') : null;
+const emailPass = process.env.EMAIL_PASS ? process.env.EMAIL_PASS.replace(/[\s'"]/g, '') : null;
+
+// Startup log — visible in Render logs to confirm the env vars are loaded correctly.
+if (emailUser) {
+  console.log(`[emailService] Loaded EMAIL_USER: ${emailUser}`);
+  console.log(`[emailService] EMAIL_PASS length: ${emailPass ? emailPass.length : 0} chars`);
+} else {
+  console.warn('[emailService] WARNING: EMAIL_USER is not set. Emails will not be sent.');
+}
+
+// Create transporter
 const transporter = nodemailer.createTransport({
-  service: 'gmail', // or 'outlook', 'yahoo', etc.
+  service: 'gmail',
   auth: {
-    user: process.env.EMAIL_USER ? process.env.EMAIL_USER.replace(/['"]/g, '').trim() : 'your-email@gmail.com',
-    pass: process.env.EMAIL_PASS ? process.env.EMAIL_PASS.replace(/['"]/g, '').trim() : 'your-app-password'
+    user: emailUser || 'your-email@gmail.com',
+    pass: emailPass || 'your-app-password'
   }
 });
 
@@ -345,8 +357,8 @@ const emailTemplates = {
 const sendEmail = async (to, templateName, data) => {
   try {
     // Skip if email not configured
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.log('Email not configured. Skipping email notification.');
+    if (!emailUser || !emailPass) {
+      console.warn('[emailService] Email not configured. Skipping email notification.');
       return { success: false, message: 'Email not configured' };
     }
 
