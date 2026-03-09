@@ -90,3 +90,7 @@ Server running on port 4000
 [32m[nodemon] starting `node src/server.js`[39m
 MongoDB connected
 Server running on port 4000
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[32m[nodemon] restarting child process[39m
+[32m[nodemon] starting `node src/server.js`[39m
+^C^C

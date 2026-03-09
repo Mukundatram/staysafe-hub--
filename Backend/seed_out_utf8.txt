@@ -1,0 +1,3 @@
+Connected to database
+Found user ID: new ObjectId('69a287c7564c82188f5b0a0e')
+Inserted 5 properties successfully.
