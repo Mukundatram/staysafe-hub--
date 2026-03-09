@@ -1,9 +1,11 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const User = require('../models/User');
 const router = express.Router();
 const { AUTH } = require('../config/constants');
 const { issueToken, createPendingUser, verifyOtp, resendOtp } = require('../services/authService');
+const { sendEmail } = require('../services/emailService');
 
 // Google OAuth (Passport)
 const passport = require('passport');
@@ -167,4 +169,73 @@ router.get('/google/callback', (req, res, next) => {
   })(req, res, next);
 });
 
+// ==================== FORGOT PASSWORD ====================
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
+
+    const user = await User.findOne({ email });
+    // Always respond with success to prevent email enumeration
+    if (!user) {
+      return res.json({ success: true, message: 'If an account with that email exists, a reset link has been sent.' });
+    }
+
+    // Generate a secure random token
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    user.passwordResetToken = tokenHash;
+    user.passwordResetExpires = expiresAt;
+    await user.save();
+
+    const resetUrl = `${FRONTEND_URL}/reset-password?token=${rawToken}&email=${encodeURIComponent(email)}`;
+    sendEmail(email, 'forgot_password', { userName: user.name, resetUrl }).catch(err =>
+      console.error('Failed to send password reset email:', err.message)
+    );
+
+    res.json({ success: true, message: 'If an account with that email exists, a reset link has been sent.' });
+  } catch (err) {
+    console.error('Forgot password error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ==================== RESET PASSWORD ====================
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { email, token, newPassword } = req.body;
+    if (!email || !token || !newPassword) {
+      return res.status(400).json({ success: false, message: 'All fields are required' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    const user = await User.findOne({
+      email,
+      passwordResetToken: tokenHash,
+      passwordResetExpires: { $gt: new Date() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired reset link. Please request a new one.' });
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, AUTH.BCRYPT_SALT_ROUNDS);
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save();
+
+    res.json({ success: true, message: 'Password reset successfully! You can now sign in with your new password.' });
+  } catch (err) {
+    console.error('Reset password error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 module.exports = router;
+

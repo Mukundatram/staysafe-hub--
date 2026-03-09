@@ -15,6 +15,8 @@ import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/auth/LoginPage';
 import GoogleCallback from './pages/auth/GoogleCallback';
 import RegisterPage from './pages/auth/RegisterPage';
+import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
+import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import PropertiesPage from './pages/properties/PropertiesPage';
 import PropertyDetailsPage from './pages/properties/PropertyDetailsPage';
 import StudentDashboard from './pages/dashboard/StudentDashboard';
@@ -65,6 +67,8 @@ function App() {
             <Route path="login" element={<LoginPage />} />
             <Route path="auth/google/success" element={<GoogleCallback />} />
             <Route path="register" element={<RegisterPage />} />
+            <Route path="forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="reset-password" element={<ResetPasswordPage />} />
             <Route path="properties" element={<PropertiesPage />} />
             <Route path="properties/:id" element={<PropertyDetailsPage />} />
             <Route path="mess" element={<MessServicesPage />} />

@@ -57,7 +57,11 @@ const userSchema = new mongoose.Schema({
     verified: { type: Boolean, default: false },
     verifiedAt: Date,
     documentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Document' }
-  }
+  },
+
+  // Password reset
+  passwordResetToken: { type: String },
+  passwordResetExpires: { type: Date }
 }, { timestamps: true });
 
 // Update fully verified status

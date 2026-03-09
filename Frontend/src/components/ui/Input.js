@@ -1,4 +1,5 @@
-import React, { forwardRef } from 'react';
+import React, { forwardRef, useState } from 'react';
+import { HiOutlineEye, HiOutlineEyeOff } from 'react-icons/hi';
 
 const Input = forwardRef(({
   label,
@@ -11,6 +12,24 @@ const Input = forwardRef(({
   className = '',
   ...props
 }, ref) => {
+  const isPassword = type === 'password';
+  const [showPassword, setShowPassword] = useState(false);
+  const resolvedType = isPassword ? (showPassword ? 'text' : 'password') : type;
+
+  const eyeButton = isPassword ? (
+    <button
+      type="button"
+      className="password-toggle-btn"
+      onClick={() => setShowPassword(prev => !prev)}
+      tabIndex={-1}
+      aria-label={showPassword ? 'Hide password' : 'Show password'}
+    >
+      {showPassword ? <HiOutlineEyeOff size={18} /> : <HiOutlineEye size={18} />}
+    </button>
+  ) : null;
+
+  const effectiveRightIcon = isPassword ? null : rightIcon;
+
   return (
     <div className={`input-wrapper ${fullWidth ? 'full-width' : ''} ${className}`}>
       {label && (
@@ -22,13 +41,14 @@ const Input = forwardRef(({
         )}
         <input
           ref={ref}
-          type={type}
-          className={`form-input ${leftIcon ? 'has-left-icon' : ''} ${rightIcon ? 'has-right-icon' : ''} ${error ? 'has-error' : ''}`}
+          type={resolvedType}
+          className={`form-input ${leftIcon ? 'has-left-icon' : ''} ${(effectiveRightIcon || isPassword) ? 'has-right-icon' : ''} ${error ? 'has-error' : ''}`}
           {...props}
         />
-        {rightIcon && (
-          <span className="input-icon right">{rightIcon}</span>
+        {effectiveRightIcon && (
+          <span className="input-icon right">{effectiveRightIcon}</span>
         )}
+        {eyeButton}
       </div>
       {error && <span className="form-error">{error}</span>}
       {helperText && !error && <span className="form-helper">{helperText}</span>}
@@ -86,6 +106,31 @@ const Input = forwardRef(({
           margin-top: 0.375rem;
           font-size: 0.875rem;
           color: var(--text-tertiary);
+        }
+
+        .password-toggle-btn {
+          position: absolute;
+          right: 0.875rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: var(--text-tertiary);
+          padding: 0.25rem;
+          border-radius: 4px;
+          transition: color 0.15s ease;
+          line-height: 0;
+        }
+
+        .password-toggle-btn:hover {
+          color: var(--text-primary);
+        }
+
+        .password-toggle-btn:focus-visible {
+          outline: 2px solid var(--accent-primary);
+          outline-offset: 2px;
         }
       `}</style>
     </div>

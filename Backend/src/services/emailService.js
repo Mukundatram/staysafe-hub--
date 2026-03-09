@@ -350,8 +350,35 @@ const emailTemplates = {
         </div>
       </div>
     `
+  }),
+
+  forgot_password: (data) => ({
+    subject: `Reset your StaySafe Hub password`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px 10px 0 0;">
+          <h1 style="color: white; margin: 0; text-align: center;">🏠 StaySafe Hub</h1>
+        </div>
+        <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
+          <h2 style="color: #333;">Reset Your Password</h2>
+          <p style="color: #666; font-size: 16px;">Hello <strong>${data.userName}</strong>,</p>
+          <p style="color: #666; font-size: 16px;">We received a request to reset your password. Click the button below to set a new password. This link expires in <strong>15 minutes</strong>.</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${data.resetUrl}" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 36px; text-decoration: none; border-radius: 25px; font-weight: bold; font-size: 16px;">
+              Reset Password
+            </a>
+          </div>
+          <p style="color: #999; font-size: 13px; text-align: center;">If the button doesn't work, copy and paste this link:<br/><a href="${data.resetUrl}" style="color: #667eea;">${data.resetUrl}</a></p>
+          <p style="color: #999; font-size: 13px; text-align: center; margin-top: 20px;">If you didn't request a password reset, you can safely ignore this email. Your password won't change.</p>
+        </div>
+        <p style="text-align: center; color: #999; font-size: 12px; margin-top: 20px;">
+          &copy; ${new Date().getFullYear()} StaySafe Hub. All rights reserved.
+        </p>
+      </div>
+    `
   })
 };
+
 
 // Send email function
 const sendEmail = async (to, templateName, data) => {
