@@ -444,7 +444,7 @@ const VerificationPage = () => {
               Verify Aadhaar
             </button>
           )}
-          {user?.verificationState !== 'verified_student' && (
+          {user?.verificationState !== 'verified_student' && user?.role !== 'owner' && (
             <button
               onClick={() => setShowCollegeModal(true)}
               style={{
