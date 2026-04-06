@@ -15,10 +15,20 @@ if (emailUser) {
 
 // Create transporter
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false,
   auth: {
-    user: emailUser || 'your-email@gmail.com',
-    pass: emailPass || 'your-app-password'
+    user: emailUser,
+    pass: emailPass,
+  },
+});
+
+transporter.verify((error, success) => {
+  if (error) {
+    console.error("❌ SMTP Error:", error);
+  } else {
+    console.log("✅ SMTP Ready");
   }
 });
 
