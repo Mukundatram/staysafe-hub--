@@ -69,6 +69,31 @@ app.use('/uploads/documents', (req, res, next) => {
 });
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
+// ✅ ROOT ROUTE (health check)
+app.get('/', (req, res) => {
+  res.status(200).json({
+    message: "Backend is running 🚀",
+    status: "ok"
+  });
+});
+
+// ✅ CRON ROUTE (for scheduled jobs)
+app.get('/cron', (req, res) => {
+  console.log("Cron job triggered at:", new Date().toISOString());
+
+  // 🔥 Add your logic here
+  // Example:
+  // - update database
+  // - run ML model
+  // - send notifications
+  // - cleanup tasks
+
+  res.status(200).json({
+    success: true,
+    message: "Cron executed"
+  });
+});
+
 // ✅ ROUTES
 app.use('/api/auth', authRoutes);
 app.use('/api/student', studentRoutes);
